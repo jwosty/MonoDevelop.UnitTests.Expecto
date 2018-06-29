@@ -10,4 +10,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
   </ItemGroup>
+  <ItemGroup>
+    <AddinReference Include="MonoDevelop.UnitTesting" />
+  </ItemGroup>
 </Project>

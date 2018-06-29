@@ -4,7 +4,7 @@ using Mono.Addins.Description;
 
 [assembly: Addin(
     "ExpectoRunner",
-    Namespace = "ExpectoRunner",
+    Namespace = "MonoDevelop.UnitTesting.Expecto",
     Version = "0.0"
 )]
 
