@@ -13,4 +13,9 @@
   <ItemGroup>
     <AddinReference Include="MonoDevelop.UnitTesting" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="ExpectoTestSuite.fs" />
+    <Compile Include="Properties\AddinInfo.fs" />
+    <Compile Include="SystemTestProvider.fs" />
+  </ItemGroup>
 </Project>
