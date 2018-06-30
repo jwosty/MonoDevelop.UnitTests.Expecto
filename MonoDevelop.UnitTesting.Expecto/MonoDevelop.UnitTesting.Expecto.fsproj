@@ -5,6 +5,7 @@
   <ItemGroup>
     <PackageReference Include="MonoDevelop.Addins" Version="0.4.4" />
     <PackageReference Include="Expecto" Version="8.1.1" />
+    <PackageReferece Remove="FSharp.Core" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Properties\Manifest.addin.xml">
@@ -13,11 +14,12 @@
   </ItemGroup>
   <ItemGroup>
     <AddinReference Include="MonoDevelop.UnitTesting" />
+    <AddinReference Include="MonoDevelop.FSharpBinding" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ExpectoTestSuite.fs" />
     <Compile Include="Properties\AddinInfo.fs" />
-    <Compile Include="AssemblyTestDiscoverer.fs" />
+    <Compile Include="FSharpProjectTestDiscoverer.fs" />
     <Compile Include="SystemTestProvider.fs" />
   </ItemGroup>
 </Project>

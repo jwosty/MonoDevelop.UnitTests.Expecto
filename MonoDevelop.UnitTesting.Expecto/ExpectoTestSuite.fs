@@ -5,10 +5,11 @@ open MonoDevelop.Projects
 open MonoDevelop.UnitTesting
 
 type ExpectoTestSuite =
-    inherit UnitTest
+    inherit UnitTestGroup
 
-    new(name) = { inherit UnitTest(name) }
-    new(name, ownerSolutionItem) = { inherit UnitTest(ownerSolutionItem) }
+    new(name) = { inherit UnitTestGroup(name) }
+    new(name, ownerSolutionItem) = { inherit UnitTestGroup(name, ownerSolutionItem) }
 
     override this.OnRun testContext =
+        
         raise (new NotImplementedException())
