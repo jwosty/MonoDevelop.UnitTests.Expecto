@@ -2,10 +2,13 @@
   <PropertyGroup>
     <TargetFramework>net461</TargetFramework>
   </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <OtherFlags> --simpleresolution --nocopyfsharpcore</OtherFlags>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MonoDevelop.Addins" Version="0.4.4" />
     <PackageReference Include="Expecto" Version="8.1.1" />
-    <PackageReferece Remove="FSharp.Core" />
+    <Reference Include="/Applications/Visual Studio.app/Contents/Resources/lib/monodevelop/AddIns/FSharpBinding/FSharp.Core.dll" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Properties\Manifest.addin.xml">
