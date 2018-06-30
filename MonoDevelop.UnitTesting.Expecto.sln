@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
 Project("{f2a71f9b-5d33-465a-a702-920d77279786}") = "MonoDevelop.UnitTesting.Expecto", "MonoDevelop.UnitTesting.Expecto\MonoDevelop.UnitTesting.Expecto.fsproj", "{F3C760FD-66A1-4028-8C9F-D619BD393987}"
 EndProject
+Project("{f2a71f9b-5d33-465a-a702-920d77279786}") = "TestSuite", "TestSuite\TestSuite.fsproj", "{247EFCB8-86EF-4872-8183-6B1C38D738DA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -13,5 +15,9 @@ Global
 		{F3C760FD-66A1-4028-8C9F-D619BD393987}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F3C760FD-66A1-4028-8C9F-D619BD393987}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F3C760FD-66A1-4028-8C9F-D619BD393987}.Release|Any CPU.Build.0 = Release|Any CPU
+		{247EFCB8-86EF-4872-8183-6B1C38D738DA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{247EFCB8-86EF-4872-8183-6B1C38D738DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{247EFCB8-86EF-4872-8183-6B1C38D738DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{247EFCB8-86EF-4872-8183-6B1C38D738DA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
