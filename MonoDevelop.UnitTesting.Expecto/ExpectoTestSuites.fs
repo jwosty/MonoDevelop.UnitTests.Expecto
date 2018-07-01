@@ -1,6 +1,6 @@
 ﻿namespace MonoDevelop.UnitTesting.Expecto
-
 open System
+open System.IO
 open System.Threading.Tasks
 open MonoDevelop.Core
 open MonoDevelop.Projects
@@ -27,23 +27,72 @@ type ExpectoTestList(name, tests: UnitTest list) as this =
 
     override this.OnRun testContext = null
 
-type ExpectoProjectTestSuite(project: DotNetProject) =
+type ExpectoProjectTestSuite(project: DotNetProject) as this =
     inherit UnitTestGroup(project.Name, project)
 
-    override this.OnRun testContext =
-        logfInfo "Expecto: running test!"
-        null
+    do
+        IdeApp.ProjectOperations.EndBuild.Add (fun e ->
+            if e.Success then
+                this.Refresh () |> ignore)
 
-    // If this were to return false, the group wouldn't show up in the pane, preventing building from being triggered
+    member this.OutputAssembly = project.GetOutputFileName(IdeApp.Workspace.ActiveConfiguration).FullPath.ToString()
+
+    // ew that we have to do this, just because the compiler doesn't let you call base methods from inside an async callback
+    member internal this.RefreshBase ct = base.Refresh ct
+
+    /// Ensures that the test tree is up to date with respect to the last build -- for now, it is dumb and just always rebuilds
+    /// the tree
+    member this.Refresh () = this.Refresh Async.DefaultCancellationToken
+
+    /// Ensures that the test tree is up to date with respect to the last build -- for now, it is dumb and just always rebuilds
+    /// the tree
+    override this.Refresh ct =
+        logfInfo "Test tree refresh requested"
+        let refresh = async {
+            this.RebuildTestTree ()
+            do! Async.AwaitTask (this.RefreshBase ct)
+        }
+        Async.StartAsTask (refresh, cancellationToken = ct) :> _
+
+    //override this.OnBuild () =
+        //Async.StartAsTask <| async {
+        //    let! ct = Async.CancellationToken
+        //    let! buildResult = Async.AwaitTask <| IdeApp.ProjectOperations.Build(project, new Nullable<_>(ct), null).Task
+        //    if not buildResult.Failed then
+        //        this.Refresh ct |> ignore
+        //    return null
+        //} :> _
+
+    override this.OnRun testContext =
+        Async.RunSynchronously <| async {
+            logfInfo "Preparing to run tests"
+            do! Async.AwaitTask (this.Build ())
+            logfInfo "Project built; running tests"
+            // TODO: implement
+            return new UnitTestResult()
+        }
+
+    // If this were to return false, the group wouldn't show up in the pane, preventing tests from even being populated
     override this.HasTests = true
 
-    override this.OnCreateTests () =
-        let outputAssemblyPath = project.GetOutputFileName(IdeApp.Workspace.ActiveConfiguration).FullPath.ToString()
-        let test = TestDiscoverer.getTestFromAssemblyPath outputAssemblyPath
-        logfInfo "Discovered test: %A" test
+    /// Reconstructs the test tree using the output assembly generated from the last build. Calling OnCreateTests()
+    /// will have exactly the same results.
+    member private this.RebuildTestTree () =
+        logfInfo "Refreshing project test tree"
+
+        this.Tests.Clear ()
+
+        let test = TestDiscoverer.getTestFromAssemblyPath this.OutputAssembly
+
+        logfInfo "Discovered Expecto test: %A" test
+
         match Option.bind Adapter.TryCreateMDTest test with
         | Some test -> this.Tests.Add test
         | None -> ()
+
+    /// Just calls RebuildTestTree()
+    override this.OnCreateTests () = this.RebuildTestTree ()
+
 
 and Adapter =
     static member TryCreateMDTests (tests, label) =
