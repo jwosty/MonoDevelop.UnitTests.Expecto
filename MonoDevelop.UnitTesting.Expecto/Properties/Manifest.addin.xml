@@ -3,14 +3,4 @@
     <Extension path = "/MonoDevelop/UnitTesting/TestProviders">
         <Class id="SystemTestProvider" class="MonoDevelop.UnitTesting.Expecto.SystemTestProvider" />
     </Extension>
-    
-    <!--<Extension path = "/MonoDevelop/Ide/Commands/Edit">
-        <Command id="MonoDevelop.Expecto.DateInserterCommands.InsertDate"
-                 _label = "Insert Date"
-                 defaultHandler = "ExpectoRunner.InsertDateHandler"/>
-    </Extension>
-
-    <Extension path = "/MonoDevelop/Ide/MainMenu/Edit">
-        <CommandItem id = "ExpectoRunner.DateInserterCommands.InsertDate" />
-    </Extension>-->
 </ExtensionModel>

@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core.dll">
-        <HintPath>/Applications/Visual Studio.app/Contents/Resources/lib/monodevelop/AddIns/FSharpBinding/FSharp.Core.dll</HintPath>
+      <HintPath>/Applications/Visual Studio.app/Contents/Resources/lib/monodevelop/AddIns/FSharpBinding/FSharp.Core.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -16,9 +16,10 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ExpectoTestSuite.fs" />
+    <Compile Include="Utilities.fs" />
+    <Compile Include="TestDiscoverer.fs" />
+    <Compile Include="ExpectoTestSuites.fs" />
     <Compile Include="Properties\AddinInfo.fs" />
-    <Compile Include="FSharpProjectTestDiscoverer.fs" />
     <Compile Include="SystemTestProvider.fs" />
     <None Include="..\..\..\..\..\..\Applications\Visual Studio.app\Contents\Resources\lib\monodevelop\AddIns\FSharpBinding\FSharp.Core.dll">
       <Link>FSharp.Core.dll</Link>
