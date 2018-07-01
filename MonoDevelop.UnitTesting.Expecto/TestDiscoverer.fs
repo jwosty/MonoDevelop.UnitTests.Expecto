@@ -3,9 +3,10 @@ open System
 open System.Reflection
 open Expecto
 
-let getTestsFromAssembly (assembly: Assembly) =
-    try Expecto.Impl.testFromAssembly assembly
-    with e -> None
+let getTestFromAssembly (assembly: Assembly) = Expecto.Impl.testFromAssembly assembly
 
-let getTestsFromAssemblyPath (assemblyPath: string) =
-    getTestsFromAssembly (Assembly.Load assemblyPath)
+let getTestFromAssemblyPath (assemblyPath: string) =
+    try getTestFromAssembly (Assembly.LoadFrom assemblyPath)
+    with e ->
+        logfError "Exception caught while loading tests: %A" e
+        None

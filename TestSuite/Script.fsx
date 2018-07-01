@@ -7,6 +7,8 @@ open System
 open System.Reflection
 open MonoDevelop.UnitTesting.Expecto.TestSuite.Tests
 
+Expecto.Impl.testFromAssembly (Assembly.LoadFrom "/Users/jwostenberg/Code/FSharp/TestSandbox/TestSuite1/bin/Debug/TestSuite1.exe")
+
 let program = """
     namespace Program
     open System

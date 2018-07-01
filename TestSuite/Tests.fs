@@ -2,7 +2,7 @@
 open Expecto
 open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices
-open MonoDevelop.UnitTesting.Expecto
+//open MonoDevelop.UnitTesting.Expecto
 open System.IO
 open System.Reflection
 
@@ -37,23 +37,23 @@ let testFromAssembly (assembly: Assembly) =
 
 let dummyFun = (fun x -> ())
 
-[<Tests>]
-let mdUTTests =
-    testList "ExpectoTestCase" [
-        test "Equals should return true when the instances are constructed with the same arguments" {
-            Expect.equal (new ExpectoTestCase("foo", dummyFun, Normal)) (new ExpectoTestCase("foo", dummyFun, Normal)) ""
-        }
-    ]
+//[<Tests>]
+//let mdUTTests =
+    //testList "ExpectoTestCase" [
+    //    test "Equals should return true when the instances are constructed with the same arguments" {
+    //        Expect.equal (new ExpectoTestCase("foo", dummyFun, Normal)) (new ExpectoTestCase("foo", dummyFun, Normal)) ""
+    //    }
+    //]
 
-[<Tests>]
-let adapterTests =
-    testList "Adapter" [
-        testList "CreateMDTest" [
-            //test "Single test" {
-            //    let exTest = testCase "foo" dummyFun
-            //    let mdTest = new ExpectoTestCase("foo", dummyFun)
-            //    Expect.equal (Adapter.CreateMDTest exTest) (upcast mdTest) ""
-            //    ()
-            //}
-        ]
-    ]
+//[<Tests>]
+//let adapterTests =
+    //testList "Adapter" [
+    //    testList "CreateMDTest" [
+    //        //test "Single test" {
+    //        //    let exTest = testCase "foo" dummyFun
+    //        //    let mdTest = new ExpectoTestCase("foo", dummyFun)
+    //        //    Expect.equal (Adapter.CreateMDTest exTest) (upcast mdTest) ""
+    //        //    ()
+    //        //}
+    //    ]
+    //]

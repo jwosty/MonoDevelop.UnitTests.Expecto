@@ -11,14 +11,19 @@ open global.Expecto
 type TestCase = { code: TestCode; state: FocusState }
 
 type ExpectoTestCase(name, testCase) =
-    inherit UnitTest(name)
+    inherit UnitTest(HelperFunctions.ensureNonEmptyName name)
 
     new(name, f, focus) = new ExpectoTestCase(name, { code = TestCode.Sync f; state = focus })
 
     override this.OnRun testContext = null
 
-type ExpectoTestList(name, tests: UnitTest list) =
-    inherit UnitTestGroup(name)
+type ExpectoTestList(name, tests: UnitTest list) as this =
+    inherit UnitTestGroup(HelperFunctions.ensureNonEmptyName name)
+
+    do
+        List.iter this.Tests.Add tests
+
+    override this.HasTests = true
 
     override this.OnRun testContext = null
 
@@ -34,26 +39,29 @@ type ExpectoProjectTestSuite(project: DotNetProject) =
 
     override this.OnCreateTests () =
         let outputAssemblyPath = project.GetOutputFileName(IdeApp.Workspace.ActiveConfiguration).FullPath.ToString()
-        let tests = TestDiscoverer.getTestsFromAssemblyPath outputAssemblyPath
-        match tests with
-        | Some tests ->
-            ()
-            //tests
-            //for testName in tests do
-                //this.Tests.Add (new ExpectoTestCase(testName))
+        let test = TestDiscoverer.getTestFromAssemblyPath outputAssemblyPath
+        logfInfo "Discovered test: %A" test
+        match Option.bind Adapter.TryCreateMDTest test with
+        | Some test -> this.Tests.Add test
         | None -> ()
 
 and Adapter =
-    //static member CreateMDTests (name, tests: Test list) : UnitTest =
-        //match test with
-        //| TestCase (code, state) -> 
+    static member TryCreateMDTests (tests, label) =
+        let mdTests = List.choose (fun t -> Adapter.TryCreateMDTest t) tests
+        new ExpectoTestList(label, mdTests)
 
     /// Creates a MonoDevelop/VSfM test tree from an Expecto lib test
-    static member CreateMDTest (test: Test) : UnitTest =
+    static member TryCreateMDTest (test: Test, ?label) : UnitTest option =
+        let label = defaultArg label ""
         match test with
-        | TestLabel (name, test, state) ->
-            match test with
-            | TestCase (code, state) -> upcast new ExpectoTestCase(name, { code = code; state = state })
-            | TestList (tests, state) -> notImpl "TestList not implemented"
-            | _ -> notImpl ""
-        | _ -> notImpl ""
+        | TestLabel (subLabel, test, state) ->
+            let label' =
+                if label = "" then subLabel
+                else sprintf "%s/%s" label subLabel
+            logfInfo "using label: %s" label'
+            Adapter.TryCreateMDTest (test, label')
+        | TestCase (code, state) -> Some (upcast new ExpectoTestCase(label, { code = code; state = state }))
+        | TestList (tests, state) -> Some (upcast Adapter.TryCreateMDTests (tests, label))
+        | Test.Sequenced _ ->
+            logfError "Expecto sequenced tests not implemented yet!"
+            None

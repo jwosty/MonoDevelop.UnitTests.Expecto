@@ -14,3 +14,7 @@ module Logging =
     let logfDebug fmt = kprintf LoggingService.LogDebug fmt
     let logfWarning fmt = kprintf LoggingService.LogWarning fmt
     let logfError fmt = kprintf LoggingService.LogDebug fmt
+
+module HelperFunctions =
+    let ensureNonEmptyName name =
+        if String.IsNullOrEmpty name then "(Unnamed)" else name
