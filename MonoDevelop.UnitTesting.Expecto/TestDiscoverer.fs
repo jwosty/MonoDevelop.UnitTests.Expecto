@@ -3,7 +3,9 @@ open System
 open System.Reflection
 open Expecto
 
-let getTests (assemblyPath: string) =
-    //let assembly = Assembly.Load assemblyPath
-    //assembly.GetTypes ()
-    ["test1"; "test2"]
+let getTestsFromAssembly (assembly: Assembly) =
+    try Expecto.Impl.testFromAssembly assembly
+    with e -> None
+
+let getTestsFromAssemblyPath (assemblyPath: string) =
+    getTestsFromAssembly (Assembly.Load assemblyPath)
