@@ -110,6 +110,7 @@ and Adapter =
             logfInfo "using label: %s" label'
             Adapter.TryCreateMDTest (test, label')
         | TestCase (code, state) -> Some (upcast new ExpectoTestCase(label, { code = code; state = state }))
+        | TestList ([test], state) -> Adapter.TryCreateMDTest (test, label)
         | TestList (tests, state) -> Some (upcast Adapter.TryCreateMDTests (tests, label))
         | Test.Sequenced _ ->
             logfError "Expecto sequenced tests not implemented yet!"
