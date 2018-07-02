@@ -1,11 +1,11 @@
 ﻿#r "../packages/Expecto.8.1.1/lib/net461/Expecto.dll"
 #r "../packages/FSharp.Compiler.Service.23.0.3/lib/net45/FSharp.Compiler.Service.dll"
 
-#load "Tests.fs"
+#load "DynamicCompiler.fsx"
 
 open System
 open System.Reflection
-open MonoDevelop.UnitTesting.Expecto.TestSuite.Tests
+
 
 Expecto.Impl.testFromAssembly (Assembly.LoadFrom "/Users/jwostenberg/Code/FSharp/TestSandbox/TestSuite1/bin/Debug/TestSuite1.exe")
 

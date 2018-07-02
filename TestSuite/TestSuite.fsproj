@@ -1,5 +1,4 @@
 ﻿<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\packages\MonoDevelop.Addins.0.4.4\build\MonoDevelop.Addins.props" Condition="Exists('..\packages\MonoDevelop.Addins.0.4.4\build\MonoDevelop.Addins.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -17,7 +16,6 @@
     <DefineConstants>DEBUG</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <ExternalConsole>true</ExternalConsole>
-    <PlatformTarget></PlatformTarget>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Optimize>true</Optimize>
@@ -78,26 +76,18 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <None Include="DummyTestSuites\DummyProject.Flat.fs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <Compile Include="Tests.fs" />
+    <Compile Include="RunnerServerTests.fs" />
     <Compile Include="Program.fs" />
     <None Include="packages.config" />
     <None Include="Script.fsx" />
+    <None Include="DynamicCompiler.fsx" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="DummyTestSuites\" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\MonoDevelop.UnitTesting.Expecto\MonoDevelop.UnitTesting.Expecto.fsproj">
-      <Project>{F3C760FD-66A1-4028-8C9F-D619BD393987}</Project>
-      <Name>MonoDevelop.UnitTesting.Expecto</Name>
+    <ProjectReference Include="..\Expecto.RunnerServer\Expecto.RunnerServer.fsproj">
+      <Project>{09097E5C-C54B-4C12-AA14-03CD9C11E087}</Project>
+      <Name>Expecto.RunnerServer</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <AddinReference Include="MonoDevelop.UnitTesting" />
-  </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
-  <Import Project="..\packages\MonoDevelop.Addins.0.4.4\build\MonoDevelop.Addins.targets" Condition="Exists('..\packages\MonoDevelop.Addins.0.4.4\build\MonoDevelop.Addins.targets')" />
 </Project>
