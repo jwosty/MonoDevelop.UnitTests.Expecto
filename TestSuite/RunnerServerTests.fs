@@ -31,7 +31,7 @@ let expectTests =
 [<Tests>]
 let testRunnerAgentTests =
     testList "TestRunnerAgent" [
-        testAsync "Should be able to post and recieve tests" {
+        testAsync "Should be able to add and get tests" {
             let agent = new TestRunnerAgent()
             let guid = Guid()
             agent.Post (Message.AddTest (guid, Dummy.singlePassing))

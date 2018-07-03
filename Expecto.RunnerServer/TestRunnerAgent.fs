@@ -12,16 +12,17 @@ module Message =
 
 type TestRunnerAgent() =
     let agent = MailboxProcessor.Start(fun agent ->
+        let rec processMessage msg tests =
+            match msg with
+            | AddTest (guid, test) -> Map.add guid test tests
+            | TryGetTest (rc, guid) ->
+                rc.Reply (Map.tryFind guid tests)
+                tests
+
         let rec messageLoop tests = async {
             let! (msg: Message) = agent.Receive ()
 
-            let tests =
-                match msg with
-                | AddTest (guid, test) ->
-                    Map.add guid test tests
-                | TryGetTest (rc, guid) ->
-                    rc.Reply (Map.tryFind guid tests)
-                    tests
+            let tests = processMessage msg tests
 
             return! messageLoop tests
         }
