@@ -30,12 +30,12 @@ let expectTests =
 
 [<Tests>]
 let testRunnerAgentTests =
-    testList "TestRunnerAgent" [
+    testList "TestDictionaryAgent" [
         testAsync "Should be able to add and get tests" {
-            let agent = new TestRunnerAgent()
+            let agent = new TestDictionaryAgent()
             let guid = Guid()
-            agent.Post (Message.AddTest (guid, Dummy.singlePassing))
-            let! retrieved = agent.PostAndAsyncReply (Message.TryGetTest guid)
+            agent.Post (TestDictionaryMessage.AddTest (guid, Dummy.singlePassing))
+            let! retrieved = agent.PostAndAsyncReply (TestDictionaryMessage.TryGetTest guid)
 
             Expect.equalObj retrieved (Some Dummy.singlePassing) ""
         }

@@ -2,15 +2,15 @@ module Expecto.RunnerServer
 open System
 open Expecto
 
-type Message =
+type TestDictionaryMessage =
     | AddTest of Guid * Test
     | TryGetTest of AsyncReplyChannel<Test option> * Guid
 
-module Message =
+module TestDictionaryMessage =
     let AddTest (guid, test) = AddTest (guid, test)
     let TryGetTest guid rc = TryGetTest (rc, guid)
 
-type TestRunnerAgent() =
+type TestDictionaryAgent() =
     let agent = MailboxProcessor.Start(fun agent ->
         let rec processMessage msg tests =
             match msg with
@@ -20,7 +20,7 @@ type TestRunnerAgent() =
                 tests
 
         let rec messageLoop tests = async {
-            let! (msg: Message) = agent.Receive ()
+            let! (msg: TestDictionaryMessage) = agent.Receive ()
 
             let tests = processMessage msg tests
 
