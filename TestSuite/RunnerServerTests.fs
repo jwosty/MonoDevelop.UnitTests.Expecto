@@ -11,11 +11,9 @@ let flatTest name f =
     sequenced = SequenceMethod.InParallel }
 
 module internal Dummy =
-    let flatPassingName = "Single passing dummy test"
-    let flatPassing = flatTest flatPassingName (fun () -> Expect.equal (1 + 2) 3 "")
+    let flatPassing = flatTest "Single passing dummy test" (fun () -> Expect.equal (1 + 2) 3 "")
 
-    let flatFailingName = "Single failing dummy test"
-    let flatFailing = flatTest flatFailingName (fun () -> Expect.equal (1 + 2) 42 "")
+    let flatFailing = flatTest "Single failing dummy test" (fun () -> Expect.equal (1 + 2) 42 "")
 
 module Expect =
     /// Like Expect.equal, but compares the objects using Object.Equals instead of the equality operator
@@ -37,6 +35,19 @@ let expectTests =
         }
     ]
 
+/// Create a new test dictionary agent, and run a FlatTest inside of it, returning the result.
+let runFlatTestInAgent test = async {
+    let agent = new TestDictionaryAgent()
+    let guid = Guid()
+    agent.Post (TestDictionaryMessage.AddTest (guid, test))
+
+    let! tryGetTestSummary = agent.PostAndAsyncReply (TestDictionaryMessage.TryGetTestResultGetter guid)
+    Expect.isSome tryGetTestSummary "Check that the test / test agent exists"
+    return! Option.get tryGetTestSummary
+    //let result = tryGetTestSummary |> Result.map (fun { result = result } -> result)
+    //Expect.equal result (Ok Impl.TestResult.Passed) "Check that the agent didn't crash and the test passed"
+}
+
 [<Tests>]
 let testRunnerAgentTests =
     testList "TestDictionaryAgent" [
@@ -50,19 +61,18 @@ let testRunnerAgentTests =
             Expect.equalObj theTest (Some Dummy.flatPassing) ""
         }
         testAsync "Should be able to start tests" {
-            let agent = new TestDictionaryAgent()
-            let guid = Guid()
-            agent.Post (TestDictionaryMessage.AddTest (guid, Dummy.flatPassing))
+            let! tryGetTestSummary = runFlatTestInAgent Dummy.flatPassing
 
-            let! tryGetTestSummary = agent.PostAndAsyncReply (TestDictionaryMessage.TryGetTestResultGetter guid)
-            Expect.isSome tryGetTestSummary "Check that the test / test agent exists"
-            
-            let! tryGetTestSummary = Option.get tryGetTestSummary
+            let result = tryGetTestSummary |> Result.map (fun { result = result } -> result)
+            Expect.equal result (Ok Impl.TestResult.Passed) "Check that the agent didn't crash and the test passed"
+        }
+        testAsync "Should be able to start tests and report failures" {
+            let! tryGetTestSummary = runFlatTestInAgent Dummy.flatFailing
 
-            match tryGetTestSummary with
-            | Ok { result = result } ->
-                Expect.equal result Impl.TestResult.Passed "Check that test passed"
-            | Error _ as x ->
-                Expect.isOk x "Check that the test agent didn't crash."
+            let result = tryGetTestSummary |> Result.map (fun { result = result } -> result)
+            match result with
+            | Ok (Impl.TestResult.Failed _) -> ()
+            | Ok testResult -> Tests.failtestf "Expected test to fail. Actual test result value was: %s" (string testResult)
+            | Error e -> Tests.failtestf "Agent threw an exception: \n%s" (string e)
         }
     ]
