@@ -5,6 +5,13 @@
 
 open System
 open System.Reflection
+open System.IO
+
+let makerw () =
+    let stream = new MemoryStream()
+    let reader = new StreamReader(stream, System.Text.Encoding.UTF8, false, 64, true)
+    let writer = new StreamWriter(stream, System.Text.Encoding.UTF8, 64, true)
+    reader, writer
 
 
 Expecto.Impl.testFromAssembly (Assembly.LoadFrom "/Users/jwostenberg/Code/FSharp/TestSandbox/TestSuite1/bin/Debug/TestSuite1.exe")

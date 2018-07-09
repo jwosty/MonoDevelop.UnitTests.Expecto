@@ -1,4 +1,4 @@
-module Expecto.RunnerServer
+namespace Expecto.RunnerServer
 open System
 open System.Threading
 open Expecto
