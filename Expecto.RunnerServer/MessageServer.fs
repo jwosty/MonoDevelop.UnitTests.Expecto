@@ -62,3 +62,51 @@ module Message =
         do! Async.AwaitTask (writer.WriteAsync payload)
         do! Async.AwaitTask (writer.FlushAsync ())
     }
+
+type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler: 'TRequest -> Async<'TResponse>) =
+    new(address, port, messageHandler) = MessageServer(new TcpListener(address, port), messageHandler)
+    new(port: int, messageHandler) = MessageServer(IPAddress.Loopback, port, messageHandler)
+
+    member private this.HandleClient (client: TcpClient) = async {
+        let clientStream = client.GetStream ()
+        while true do
+            let! request = Message.read<'TRequest> clientStream
+            // ... Generate response here ...
+            let! response = messageHandler request.payload
+            let response = { channelId = request.channelId; payload = response }
+            do! Message.write clientStream response
+    }
+
+    /// Starts the message server.
+    member this.StartAsync () = async {
+        listener.Start ()
+
+        while true do
+            let! client = Async.AwaitTask <| listener.AcceptTcpClientAsync ()
+            do! this.HandleClient client
+    }
+
+    /// Starts the message server in a separate thread.
+    member this.Start () = Async.Start (this.StartAsync ())
+
+module MessageServer =
+    /// Creates and starts a message server in a separate thread.
+    let Start (address, port, messageHandler) =
+        let server = new MessageServer<_, _>(address, port, messageHandler)
+        server.Start ()
+        server
+
+type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
+    new() = MessageClient(new TcpClient())
+
+    member this.ConnectAsync (address: IPAddress, port) = async {
+        do! Async.AwaitTask (tcpClient.ConnectAsync (address, port))
+    }
+
+    member this.GetResponseAsync request = async {
+        let stream = tcpClient.GetStream ()
+        let channelId = Guid().ToString()
+        do! Message.write stream { channelId = channelId; payload = request }
+        let! response = Message.read stream
+        return response.payload
+    }
