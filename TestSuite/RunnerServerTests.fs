@@ -36,15 +36,31 @@ let expectTests =
         }
     ]
 
+let getTestSummary (agent: TestDictionaryAgent) testId = async {
+    let! tryGetTestSummary = agent.PostAndAsyncReply (TestDictionaryMessage.TryGetTestResultGetter testId)
+    Expect.isSome tryGetTestSummary "Check that the test / test agent exists"
+    return! Option.get tryGetTestSummary
+}
+
+let getSuccessfulTestSummary agent testId = async {
+    let! result = getTestSummary agent testId
+    return
+        match result with
+        | Ok ({ result = Impl.TestResult.Passed } as summary) ->
+            summary
+        | Error _ ->
+            Tests.failtestf "Expected that the agent didn't crash and the test passed, but agent crashed. Result was: %A" result
+        | _ ->
+            Tests.failtestf "Expected that the agent didn't crash and the test passed, but test didn't pass. Result was: %A" result
+}
+
 /// Create a new test dictionary agent, and run a FlatTest inside of it, returning the result.
 let runFlatTestInAgent test = async {
     let agent = new TestDictionaryAgent()
-    let guid = Guid.NewGuid()
-    agent.Post (TestDictionaryMessage.AddTest (guid, test))
+    let testId = Guid.NewGuid()
+    agent.Post (TestDictionaryMessage.AddTest (testId, test))
 
-    let! tryGetTestSummary = agent.PostAndAsyncReply (TestDictionaryMessage.TryGetTestResultGetter guid)
-    Expect.isSome tryGetTestSummary "Check that the test / test agent exists"
-    return! Option.get tryGetTestSummary
+    return! getTestSummary agent testId
 }
 
 let makeTotallyRealTestSuite topLevelTestValues =
@@ -96,12 +112,18 @@ let testRunnerAgentTests =
             | Ok testResult -> Tests.failtestf "Expected test to fail. Actual test result value was: %s" (string testResult)
             | Error e -> Tests.failtestf "Agent threw an exception: \n%s" (string e)
         }
-        testAsync "Should be able to detect and load tests from an assembly" {
+        testAsync "Should be able to detect, load, and run tests from an assembly" {
             let! asmPath = AssemblyCompiler.compile totallyRealTestSuiteV1 totallyRealTestSuiteName
             let agent = new TestDictionaryAgent()
             let! loadedTests = agent.PostAndAsyncReply (TestDictionaryMessage.AddTestsFromAssembly asmPath)
-            match loadedTests with
-            | Ok loadedTests -> Expect.equal loadedTests.Length 1 "Check that 1 test was loaded"
-            | Error _ as x -> Expecto.Tests.failtestf "Expected loadedTests to be Ok, but got: %A" x
+            let loadedTests =
+                match loadedTests with
+                | Ok loadedTests ->
+                    Expect.equal loadedTests.Length 1 "Check that 1 test was loaded"
+                    loadedTests
+                | Error _ as x -> Expecto.Tests.failtestf "Expected loadedTests to be Ok, but got: %A" x
+            for (testId, _) in loadedTests do
+                let! result = getSuccessfulTestSummary agent testId
+                ()
         }
     ]
