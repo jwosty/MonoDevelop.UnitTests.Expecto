@@ -100,7 +100,8 @@ let testRunnerAgentTests =
             let! asmPath = AssemblyCompiler.compile totallyRealTestSuiteV1 totallyRealTestSuiteName
             let agent = new TestDictionaryAgent()
             let! loadedTests = agent.PostAndAsyncReply (TestDictionaryMessage.AddTestsFromAssembly asmPath)
-            let loadedTests = Option.get loadedTests
-            Expect.isNonEmpty loadedTests "Check that some tests were loaded"
+            match loadedTests with
+            | Ok loadedTests -> Expect.equal loadedTests.Length 1 "Check that 1 test was loaded"
+            | Error _ as x -> Expecto.Tests.failtestf "Expected loadedTests to be Ok, but got: %A" x
         }
     ]

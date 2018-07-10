@@ -1,11 +1,12 @@
 namespace Expecto.RunnerServer
 open System
+open System.Reflection
 open System.Threading
 open Expecto
 
 type TestDictionaryMessage =
     | AddTest of Guid * FlatTest
-    | AddTestsFromAssembly of AsyncReplyChannel<(FlatTest * Guid) list option> * assemblyPath:string
+    | AddTestsFromAssembly of AsyncReplyChannel<Result<(Guid * FlatTest) list, exn>> * assemblyPath:string
     | TryGetTest of AsyncReplyChannel<FlatTest option> * Guid
     | TryGetTestResultGetter of AsyncReplyChannel<Async<Result<Expecto.Impl.TestSummary, exn>> option> * Guid
 
@@ -45,8 +46,19 @@ type TestDictionaryAgent() =
         let rec processMessage msg tests =
             match msg with
             | AddTest (guid, test) -> Map.add guid (test, None) tests
-            | AddTestsFromAssembly (rc, test) ->
-                rc.Reply (Some [])
+            | AddTestsFromAssembly (rc, assemblyPath) ->
+                try
+                    let assembly = Assembly.LoadFrom assemblyPath
+                    let newT =
+                        match Expecto.Impl.testFromAssembly assembly with
+                        | Some tests -> tests
+                        | None -> failwithf "Expecto failed to load tests from assembly '%s' (%A)" assemblyPath assembly
+                    let newTests =
+                        Expecto.Test.toTestCodeList newT
+                        |> List.map (fun flatTest -> Guid.NewGuid(), flatTest)
+                    rc.Reply (Ok newTests)
+                with e ->
+                    rc.Reply (Error e)
                 tests
             | TryGetTest (rc, guid) ->
                 rc.Reply (Map.tryFind guid tests |> Option.map fst)
