@@ -32,17 +32,32 @@ let messageTests =
         }
     ]
 
-let ip, port = IPAddress.Loopback, 10201
 let reverseString (str: string) = new string(Array.rev <| str.ToCharArray())
+
+let ip = IPAddress.Loopback
 
 [<Tests>]
 let messageServerTests =
     testList "MessageServer+MessageClient" [
         testAsync "MC should be able to send a message to a server and get a response" {
-            let server = MessageServer.Start (ip, port, fun (str: string) -> async { return reverseString str })
-            let! client = MessageClient.ConnectAsync (ip, port)
+            let server = MessageServer.Start (IPAddress.Any, 0, fun (str: string) -> async { return reverseString str })
+            let! client = MessageClient.ConnectAsync (ip, server.Port)
 
             let! response = client.GetResponseAsync "foo bar"
             Expect.equal response "rab oof" "Check response"
+        }
+        testAsync "MS should be able to serve two clients simultaneously" {
+            let server = MessageServer.Start (ip, 0, fun str -> async { return reverseString str })
+            let! client1 = MessageClient.ConnectAsync (ip, server.Port)
+            let! client2 = MessageClient.ConnectAsync (ip, server.Port)
+
+            // it's fine that these aren't in parallel -- we are only testing that both clients can be connected
+            let! foo = client1.GetResponseAsync "foo"
+            let! bar = client2.GetResponseAsync "bar"
+            let! baz = client1.GetResponseAsync "baz"
+
+            Expect.equal foo "oof" "Check reverse foo"
+            Expect.equal bar "rab" "Check reverse bar"
+            Expect.equal baz "zab" "Check reverse baz"
         }
     ]

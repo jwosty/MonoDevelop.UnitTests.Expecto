@@ -67,6 +67,11 @@ type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler:
     new(address, port, messageHandler) = MessageServer(new TcpListener(address, port), messageHandler)
     new(port: int, messageHandler) = MessageServer(IPAddress.Loopback, port, messageHandler)
 
+    member this.LocalEndpoint = listener.LocalEndpoint
+
+    // TODO: is this always safe?
+    member this.Port = (this.LocalEndpoint :?> IPEndPoint).Port
+
     member private this.HandleClient (client: TcpClient) = async {
         let clientStream = client.GetStream ()
         while true do
@@ -78,13 +83,13 @@ type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler:
     }
 
     /// Starts the message server.
-    member this.StartAsync () = async {
+    member this.StartAsync () =
         listener.Start ()
-
-        while true do
-            let! client = Async.AwaitTask <| listener.AcceptTcpClientAsync ()
-            do! this.HandleClient client
-    }
+        async {
+            while true do
+                let! client = Async.AwaitTask <| listener.AcceptTcpClientAsync ()
+                Async.Start <| this.HandleClient client
+        }
 
     /// Starts the message server in a separate thread.
     member this.Start () = Async.Start (this.StartAsync ())
