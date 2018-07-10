@@ -32,16 +32,17 @@ let messageTests =
         }
     ]
 
+let ip, port = IPAddress.Loopback, 10201
+let reverseString (str: string) = new string(Array.rev <| str.ToCharArray())
+
 [<Tests>]
 let messageServerTests =
     testList "MessageServer+MessageClient" [
         testAsync "MC should be able to send a message to a server and get a response" {
-            let ip, port = IPAddress.Loopback, 10201
-            let server = MessageServer.Start (ip, port, fun x -> async { return x + 1 })
-            let client = new MessageClient<_, _>()
+            let server = MessageServer.Start (ip, port, fun (str: string) -> async { return reverseString str })
+            let! client = MessageClient.ConnectAsync (ip, port)
 
-            do! client.ConnectAsync (ip, port)
-            let! response = client.GetResponseAsync 42
-            Expect.equal response 43 "Check response"
+            let! response = client.GetResponseAsync "foo bar"
+            Expect.equal response "rab oof" "Check response"
         }
     ]

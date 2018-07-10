@@ -103,10 +103,17 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
         do! Async.AwaitTask (tcpClient.ConnectAsync (address, port))
     }
 
-    member this.GetResponseAsync request = async {
+    member this.GetResponseAsync (request: 'TRequest) : Async<'TResponse> = async {
         let stream = tcpClient.GetStream ()
         let channelId = Guid().ToString()
         do! Message.write stream { channelId = channelId; payload = request }
         let! response = Message.read stream
         return response.payload
+    }
+
+module MessageClient =
+    let ConnectAsync<'TRequest, 'TResponse> (address, port) = async {
+        let client = new MessageClient<'TRequest, 'TResponse>()
+        do! client.ConnectAsync (address, port)
+        return client
     }
