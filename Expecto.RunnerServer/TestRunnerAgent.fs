@@ -5,11 +5,13 @@ open Expecto
 
 type TestDictionaryMessage =
     | AddTest of Guid * FlatTest
+    | AddTestsFromAssembly of AsyncReplyChannel<(FlatTest * Guid) list option> * assemblyPath:string
     | TryGetTest of AsyncReplyChannel<FlatTest option> * Guid
     | TryGetTestResultGetter of AsyncReplyChannel<Async<Result<Expecto.Impl.TestSummary, exn>> option> * Guid
 
 module TestDictionaryMessage =
     let AddTest (guid, test) = AddTest (guid, test)
+    let AddTestsFromAssembly assemblyPath rc = AddTestsFromAssembly (rc, assemblyPath)
     let TryGetTest guid rc = TryGetTest (rc, guid)
     let TryGetTestResultGetter guid rc = TryGetTestResultGetter (rc, guid)
 
@@ -43,6 +45,9 @@ type TestDictionaryAgent() =
         let rec processMessage msg tests =
             match msg with
             | AddTest (guid, test) -> Map.add guid (test, None) tests
+            | AddTestsFromAssembly (rc, test) ->
+                rc.Reply (Some [])
+                tests
             | TryGetTest (rc, guid) ->
                 rc.Reply (Map.tryFind guid tests |> Option.map fst)
                 tests
