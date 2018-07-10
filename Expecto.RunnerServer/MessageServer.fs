@@ -1,6 +1,7 @@
 ﻿namespace Expecto.RunnerServer
 open System
 open System.Collections.Generic
+open System.Collections.Concurrent
 open System.IO
 open System.Net
 open System.Net.Sockets
@@ -121,19 +122,63 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
     let writeLock = new SemaphoreSlim(1, 1)
     let readLock = new SemaphoreSlim(1, 1)
 
+    /// A dictionary storing the client's open request IDs along with their corresponding continuations
+    /// to be called when its response is recieved
+    let responseContinuations = new ConcurrentDictionary<string, Message<'TResponse> -> unit>()
+
+    let onInvalidResponse = new Event<_>()
+    let onInvalidResponse_Published = onInvalidResponse.Publish
+
+    do
+        onInvalidResponse_Published.Add (fun message ->
+            printfn "WARNING: server replied with an invalid response ID. Message was: (%A)" message)
+
+    /// An event that triggers when the server sends an invalid response; that is, when the response doesn't match
+    /// any of this client's requests
+    member this.OnInvalidResponse = onInvalidResponse_Published
+
     new() = MessageClient(new TcpClient())
 
-    member this.ConnectAsync (address: IPAddress, port) = async {
-        do! Async.AwaitTask (tcpClient.ConnectAsync (address, port))
+    member private this.HandleResponseLoop stream = async {
+        while true do
+            // listen for a response, then route it to the correct continuation
+            try
+                let! response = acquireAsync readLock (fun () -> Message.read stream)
+                match responseContinuations.TryGetValue response.channelId with
+                | true, continuation ->
+                    responseContinuations.TryRemove response.channelId |> ignore
+                    continuation response
+                | false, _ -> onInvalidResponse.Trigger response
+            with e ->
+                printf "Exception caught while reading/handling response: %A\n" e
     }
 
+    /// Connects to a MessageServer listening at the given address and port
+    member this.ConnectAsync (address: IPAddress, port) = async {
+        do! Async.AwaitTask (tcpClient.ConnectAsync (address, port))
+        let stream = tcpClient.GetStream ()
+        Async.Start <| this.HandleResponseLoop stream
+    }
+
+    /// Asynchronously sends a request to the server and awaits the response
     member this.GetResponseAsync (request: 'TRequest) : Async<'TResponse> = async {
         let stream = tcpClient.GetStream ()
-        let channelId = Guid().ToString()
+        let request = { channelId = Guid.NewGuid().ToString(); payload = request }
 
-        do! acquireAsync writeLock (fun () ->
-                Message.write stream { channelId = channelId; payload = request })
-        let! response = acquireAsync readLock (fun () -> Message.read stream )
+        do! acquireAsync writeLock (fun () -> Message.write stream request)
+
+        let! response =
+            Async.FromContinuations (fun (cont, contError, contCancelled) ->
+                if not (responseContinuations.TryAdd (request.channelId, cont)) then
+                    // If this happens, it's probably a bug in this method -- something is probably causing the same response's
+                    // continuation to be added multiple times
+                    invalidOp ("Response has already been registered. This is probably a MessageClient bug -- please report this to the author.")
+            )
+        
+        // sanity check, just in case
+        if response.channelId <> request.channelId then
+            invalidOp (sprintf "Response channelId didn't match the request (request: %A, response: %A). This is a MessageClient bug -- please report this to the author." response request)
+        
         return response.payload
     }
 

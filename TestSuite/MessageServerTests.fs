@@ -46,6 +46,14 @@ let messageServerTests =
             let! response = client.GetResponseAsync "foo bar"
             Expect.equal response "rab oof" "Check response"
         }
+        testAsync "Client should be able to send messages and get responses more than once" {
+             let server = MessageServer.Start (IPAddress.Any, 0, fun (str: string) -> async { return reverseString str })
+             let! client = MessageClient.ConnectAsync (ip, server.Port)
+
+             for i in 1..5 do
+                 let! response = client.GetResponseAsync (sprintf "foo bar %d" i)
+                 Expect.equal response (sprintf "%d rab oof" i) "Check response"
+        } 
         testAsync "Server should be able to serve two clients simultaneously" {
             let server = MessageServer.Start (ip, 0, fun str -> async { return reverseString str })
             let! client1 = MessageClient.ConnectAsync (ip, server.Port)
@@ -71,7 +79,7 @@ let messageServerTests =
 
             let! getDelayed = Async.StartChild <| client.GetResponseAsync (250, "delay me")
             do! Async.Sleep 100
-            let! getImmediate = Async.StartChild <| client.GetResponseAsync (0, "delay me")
+            let! getImmediate = Async.StartChild <| client.GetResponseAsync (0, "immediate")
 
             let! results = 
                 Async.Parallel [
