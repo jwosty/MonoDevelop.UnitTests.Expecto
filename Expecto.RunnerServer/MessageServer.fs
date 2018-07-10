@@ -16,6 +16,11 @@ module Ext =
         // Copied from the .NET source
         static member DefaultBufferSize = 1024
 
+        /// <summary>
+        /// Reads the specified number of bytes from the underlying stream (as opposed to <see cref="StreamReader.ReadAsync"/>,
+        /// which reads UP TO the specified number of bytes).
+        /// <exception cref="EndOfStreamException">Thrown when the end of the stream is reached before all of the bytes could be read.</exception>
+        /// </summary>
         member this.ReadBytesAsync count = async {
             let mutable offset = 0
             let buffer = Array.zeroCreate count
@@ -46,6 +51,7 @@ module Message =
     // Messages are composed of a 32-bit int indicating the payload length in bytes, followed by a newline,
     // followed by the message payload
 
+    /// Reads and deserializes a message from a stream. Not thread-safe.
     let read<'a> (stream: Stream) : Async<Message<'a>> = async {
         // TODO: catch exceptions and report protocol errors back to the client
         let! payload = async {
@@ -62,6 +68,7 @@ module Message =
         return message
     }
 
+    /// Serializes and writes a message to a stream. Not thread-safe.
     let write (stream: Stream) (message: Message<'a>) = async {
         let payload =
             use payloadWriter = new StringWriter()
@@ -123,7 +130,7 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
     let readLock = new SemaphoreSlim(1, 1)
 
     /// A dictionary storing the client's open request IDs along with their corresponding continuations
-    /// to be called when its response is recieved
+    /// to be called when its response is recieved.
     let responseContinuations = new ConcurrentDictionary<string, Message<'TResponse> -> unit>()
 
     let onInvalidResponse = new Event<_>()
@@ -134,7 +141,7 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
             printfn "WARNING: server replied with an invalid response ID. Message was: (%A)" message)
 
     /// An event that triggers when the server sends an invalid response; that is, when the response doesn't match
-    /// any of this client's requests
+    /// any of this client's requests.
     member this.OnInvalidResponse = onInvalidResponse_Published
 
     new() = MessageClient(new TcpClient())
@@ -153,21 +160,18 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
                 printf "Exception caught while reading/handling response: %A\n" e
     }
 
-    /// Connects to a MessageServer listening at the given address and port
+    /// Connects to a MessageServer listening at the given address and port.
     member this.ConnectAsync (address: IPAddress, port) = async {
         do! Async.AwaitTask (tcpClient.ConnectAsync (address, port))
         let stream = tcpClient.GetStream ()
         Async.Start <| this.HandleResponseLoop stream
     }
 
-    /// Asynchronously sends a request to the server and awaits the response
-    member this.GetResponseAsync (request: 'TRequest) : Async<'TResponse> = async {
-        let stream = tcpClient.GetStream ()
-        let request = { channelId = Guid.NewGuid().ToString(); payload = request }
-
-        do! acquireAsync writeLock (fun () -> Message.write stream request)
-
+    /// Asynchronously waits until a request's response is recieved.
+    member private this.AwaitResponseAsync request = async {
         let! response =
+            // Build an async from a callback, and add it to the responseContinuations dictionary. This async will call back when the function in
+            // the dictionary is invoked (in HandleResponseLoop)
             Async.FromContinuations (fun (cont, contError, contCancelled) ->
                 if not (responseContinuations.TryAdd (request.channelId, cont)) then
                     // If this happens, it's probably a bug in this method -- something is probably causing the same response's
@@ -179,6 +183,15 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
         if response.channelId <> request.channelId then
             invalidOp (sprintf "Response channelId didn't match the request (request: %A, response: %A). This is a MessageClient bug -- please report this to the author." response request)
         
+        return response
+    }
+
+    /// Asynchronously sends a request to the server and awaits the response
+    member this.GetResponseAsync (request: 'TRequest) : Async<'TResponse> = async {
+        let stream = tcpClient.GetStream ()
+        let request = { channelId = Guid.NewGuid().ToString(); payload = request }
+        do! acquireAsync writeLock (fun () -> Message.write stream request)
+        let! response = this.AwaitResponseAsync request
         return response.payload
     }
 
