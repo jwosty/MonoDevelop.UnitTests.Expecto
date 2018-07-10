@@ -60,4 +60,27 @@ let messageServerTests =
             Expect.equal bar "rab" "Check reverse bar"
             Expect.equal baz "zab" "Check reverse baz"
         }
+        testAsync "MC should be able to recieve messages out of order" {
+            let server = MessageServer.Start (ip, 0, fun (delay, message) -> async {
+                do! Async.Sleep delay
+                return reverseString message
+            })
+            let! client = MessageClient.ConnectAsync (ip, server.Port)
+
+            let mutable delayRecieved = false
+
+            let! results =
+                Async.Parallel [
+                    async {
+                        let! resp = client.GetResponseAsync (100, "delay me")
+                        delayRecieved <- true
+                        Expect.equal resp "em yaled" "Check delayed message" }
+                    async {
+                        do! Async.Sleep 10
+                        let! resp = client.GetResponseAsync (0, "immediate")
+                        Expect.equal delayRecieved false "Check whether or not the delayed message has responded yet"
+                        Expect.equal resp "etaidemmi" "Check immediate message" }
+                ]
+            ()
+        }
     ]

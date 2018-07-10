@@ -1,9 +1,11 @@
 ﻿namespace Expecto.RunnerServer
 open System
+open System.Collections.Generic
 open System.IO
 open System.Net
 open System.Net.Sockets
 open System.Text
+open System.Threading
 open MBrace.FsPickler
 open MBrace.FsPickler.Json
 
@@ -24,7 +26,16 @@ module Ext =
                     raise (new EndOfStreamException())
             return buffer
         }
-    
+
+[<AutoOpen>]
+module HelperFunctions =
+    let inline acquireAsync (semaphore: SemaphoreSlim) action = async {
+        try
+            do! Async.AwaitTask (semaphore.WaitAsync ())
+            return! action ()
+        finally 
+            semaphore.Release () |> ignore
+    }
 
 type Message<'a> = { channelId: string; payload: 'a }
 
@@ -36,11 +47,11 @@ module Message =
 
     let read<'a> (stream: Stream) : Async<Message<'a>> = async {
         // TODO: catch exceptions and report protocol errors back to the client
-        //use reader = new BinaryReader(stream, Encoding.UTF8, true) in
         let! payload = async {
             use reader = new StreamReader(stream, Encoding.UTF8, true, StreamReader.DefaultBufferSize, true)
             let! payloadLength = Async.AwaitTask <| reader.ReadLineAsync ()
-            let payloadLength = int (payloadLength.TrimEnd [|'\r'; '\n'|])
+            let payloadLength = payloadLength.TrimEnd [|'\r'; '\n'|]
+            let payloadLength = int payloadLength
             let! payload = reader.ReadBytesAsync payloadLength
             return new string(payload)
         }
@@ -64,6 +75,11 @@ module Message =
     }
 
 type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler: 'TRequest -> Async<'TResponse>) =
+    let readLockk = new Object()
+    let writeLockk = new Object()
+    let readLock = new SemaphoreSlim(1, 1)
+    let writeLock = new SemaphoreSlim(1, 1)
+
     new(address, port, messageHandler) = MessageServer(new TcpListener(address, port), messageHandler)
     new(port: int, messageHandler) = MessageServer(IPAddress.Loopback, port, messageHandler)
 
@@ -75,11 +91,10 @@ type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler:
     member private this.HandleClient (client: TcpClient) = async {
         let clientStream = client.GetStream ()
         while true do
-            let! request = Message.read<'TRequest> clientStream
-            // ... Generate response here ...
+            let! request = acquireAsync readLock (fun () -> Message.read<'TRequest> clientStream)
             let! response = messageHandler request.payload
             let response = { channelId = request.channelId; payload = response }
-            do! Message.write clientStream response
+            do! acquireAsync writeLock (fun () -> Message.write clientStream response)
     }
 
     /// Starts the message server.
@@ -102,6 +117,9 @@ module MessageServer =
         server
 
 type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
+    let writeLock = new SemaphoreSlim(1, 1)
+    let readLock = new SemaphoreSlim(1, 1)
+
     new() = MessageClient(new TcpClient())
 
     member this.ConnectAsync (address: IPAddress, port) = async {
@@ -111,8 +129,10 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
     member this.GetResponseAsync (request: 'TRequest) : Async<'TResponse> = async {
         let stream = tcpClient.GetStream ()
         let channelId = Guid().ToString()
-        do! Message.write stream { channelId = channelId; payload = request }
-        let! response = Message.read stream
+
+        do! acquireAsync writeLock (fun () ->
+                Message.write stream { channelId = channelId; payload = request })
+        let! response = acquireAsync readLock (fun () -> Message.read stream )
         return response.payload
     }
 
