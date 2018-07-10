@@ -69,17 +69,22 @@ let messageServerTests =
 
             let mutable delayRecieved = false
 
-            let! results =
+            let! getDelayed = Async.StartChild <| client.GetResponseAsync (250, "delay me")
+            do! Async.Sleep 100
+            let! getImmediate = Async.StartChild <| client.GetResponseAsync (0, "delay me")
+
+            let! results = 
                 Async.Parallel [
                     async {
-                        let! resp = client.GetResponseAsync (100, "delay me")
+                        let! delayedResp = getDelayed
                         delayRecieved <- true
-                        Expect.equal resp "em yaled" "Check delayed message" }
+                        Expect.equal delayedResp "em yaled" "Check immediate (non-delayed) response"
+                    }
                     async {
-                        do! Async.Sleep 10
-                        let! resp = client.GetResponseAsync (0, "immediate")
-                        Expect.equal delayRecieved false "Check whether or not the delayed message has responded yet"
-                        Expect.equal resp "etaidemmi" "Check immediate message" }
+                        let! immediateResp = getImmediate
+                        Expect.equal delayRecieved false "Check that the delayed response has not yet been recieved (e.g. it should respond after immediate)."
+                        Expect.equal immediateResp "etaidemmi" "Check immedate (non-delayed) response"
+                    }
                 ]
             ()
         }

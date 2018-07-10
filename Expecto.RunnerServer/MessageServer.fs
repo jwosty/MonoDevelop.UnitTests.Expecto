@@ -75,8 +75,6 @@ module Message =
     }
 
 type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler: 'TRequest -> Async<'TResponse>) =
-    let readLockk = new Object()
-    let writeLockk = new Object()
     let readLock = new SemaphoreSlim(1, 1)
     let writeLock = new SemaphoreSlim(1, 1)
 
@@ -91,10 +89,13 @@ type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler:
     member private this.HandleClient (client: TcpClient) = async {
         let clientStream = client.GetStream ()
         while true do
+            // The read lock may not be strictly necessary
             let! request = acquireAsync readLock (fun () -> Message.read<'TRequest> clientStream)
-            let! response = messageHandler request.payload
-            let response = { channelId = request.channelId; payload = response }
-            do! acquireAsync writeLock (fun () -> Message.write clientStream response)
+            Async.Start <| async {
+                let! response = messageHandler request.payload
+                let response = { channelId = request.channelId; payload = response }
+                do! acquireAsync writeLock (fun () -> Message.write clientStream response)
+            }
     }
 
     /// Starts the message server.
