@@ -9,6 +9,7 @@ type TestDictionaryMessage =
     | AddTestsFromAssembly of AsyncReplyChannel<Result<(Guid * FlatTest) list, exn>> * assemblyPath:string
     | TryGetTest of AsyncReplyChannel<FlatTest option> * Guid
     | TryGetTestResultGetter of AsyncReplyChannel<Async<Result<Expecto.Impl.TestSummary, exn>> option> * Guid
+    | UnloadTestsAndAssemblies
 
 module TestDictionaryMessage =
     let AddTest (guid, test) = AddTest (guid, test)
@@ -57,9 +58,17 @@ type TestDictionaryAgent() =
                         Expecto.Test.toTestCodeList newT
                         |> List.map (fun flatTest -> Guid.NewGuid(), flatTest)
                     rc.Reply (Ok newTests)
+                    newTests |> List.fold (fun tests (testId, test) ->
+                        processMessage (AddTest (testId, test)) tests) tests
                 with e ->
                     rc.Reply (Error e)
-                tests
+                    tests
+            | UnloadTestsAndAssemblies ->
+                try
+                    Map.empty
+                with e ->
+                    printfn "Exception caught in TestDictionaryAgent while processing %A: %A" msg e
+                    tests
             | TryGetTest (rc, guid) ->
                 rc.Reply (Map.tryFind guid tests |> Option.map fst)
                 tests

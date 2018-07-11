@@ -1,5 +1,6 @@
 ﻿module Expecto.RunnerServer.RunnerServer.Tests
 open System
+open System.IO
 open Expecto
 open Expecto.RunnerServer
 open Expecto.RunnerServer.Tests
@@ -85,6 +86,19 @@ let totallyRealTestSuiteV1 = makeTotallyRealTestSuite ["""test "passing test 1" 
 let totallyRealTestSuiteV2 = makeTotallyRealTestSuite ["""test "passing test 1" { Expect.equal (10 * 2) 20 }"""
                                                        """test "passing test 2" { Expect.equal ("foo" + "bar") "foobar" }"""]
 
+let loadAndRunTestsInAssembly (agent: TestDictionaryAgent) nExpectedTests assemblyPath = async {
+    let! loadedTests = agent.PostAndAsyncReply (TestDictionaryMessage.AddTestsFromAssembly assemblyPath)
+    let loadedTests =
+        match loadedTests with
+        | Ok loadedTests ->
+            Expect.equal loadedTests.Length nExpectedTests "Check that 1 test was loaded"
+            loadedTests
+        | Error _ as x -> Expecto.Tests.failtestf "Expected loadedTests to be Ok, but got: %A" x
+    for (testId, _) in loadedTests do
+        let! result = getSuccessfulTestSummary agent testId
+        ()
+}
+
 [<Tests>]
 let testRunnerAgentTests =
     testList "TestDictionaryAgent" [
@@ -113,17 +127,8 @@ let testRunnerAgentTests =
             | Error e -> Tests.failtestf "Agent threw an exception: \n%s" (string e)
         }
         testAsync "Should be able to detect, load, and run tests from an assembly" {
-            let! asmPath = AssemblyCompiler.compile totallyRealTestSuiteV1 totallyRealTestSuiteName
+            let! asmPath = AssemblyCompiler.Compile (totallyRealTestSuiteV1, totallyRealTestSuiteName)
             let agent = new TestDictionaryAgent()
-            let! loadedTests = agent.PostAndAsyncReply (TestDictionaryMessage.AddTestsFromAssembly asmPath)
-            let loadedTests =
-                match loadedTests with
-                | Ok loadedTests ->
-                    Expect.equal loadedTests.Length 1 "Check that 1 test was loaded"
-                    loadedTests
-                | Error _ as x -> Expecto.Tests.failtestf "Expected loadedTests to be Ok, but got: %A" x
-            for (testId, _) in loadedTests do
-                let! result = getSuccessfulTestSummary agent testId
-                ()
+            do! loadAndRunTestsInAssembly agent 1 asmPath
         }
     ]
