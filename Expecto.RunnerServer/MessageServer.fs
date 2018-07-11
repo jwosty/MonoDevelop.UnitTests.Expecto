@@ -82,12 +82,14 @@ module Message =
         do! Async.AwaitTask (writer.FlushAsync ())
     }
 
+// TODO: implement IDisposable
 type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler: 'TRequest -> Async<'TResponse>) =
     let readLock = new SemaphoreSlim(1, 1)
     let writeLock = new SemaphoreSlim(1, 1)
 
     new(address, port, messageHandler) = MessageServer(new TcpListener(address, port), messageHandler)
     new(port: int, messageHandler) = MessageServer(IPAddress.Loopback, port, messageHandler)
+    new(messageHandler) = MessageServer(IPAddress.Loopback, 0, messageHandler)
 
     member this.LocalEndpoint = listener.LocalEndpoint
 
@@ -125,6 +127,7 @@ module MessageServer =
         server.Start ()
         server
 
+// TODO: implement IDisposable
 type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
     let writeLock = new SemaphoreSlim(1, 1)
     let readLock = new SemaphoreSlim(1, 1)
