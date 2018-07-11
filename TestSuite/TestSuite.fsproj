@@ -85,7 +85,7 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="AssemblyCompiler.fs" />
-    <Compile Include="RunnerServerTests.fs" />
+    <Compile Include="TestRunnerServerTests.fs" />
     <Compile Include="MessageServerTests.fs" />
     <Compile Include="Program.fs" />
     <None Include="packages.config" />
