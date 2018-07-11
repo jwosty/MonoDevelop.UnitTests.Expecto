@@ -82,6 +82,8 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
 
         this.Tests.Clear ()
 
+        let rem = RemoteTestRunner.Start ()
+
         let test = TestDiscoverer.getTestFromAssemblyPath this.OutputAssembly
 
         logfInfo "Discovered Expecto test: %A" test

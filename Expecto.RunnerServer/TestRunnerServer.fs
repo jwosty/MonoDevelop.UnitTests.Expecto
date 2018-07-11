@@ -40,5 +40,6 @@ let main argv =
             | true, x -> Some x
             | _ -> None)
         |> Option.defaultValue 12050
+    printfn "Test runner server listening on port %d" port
     createAndStart port
     0
