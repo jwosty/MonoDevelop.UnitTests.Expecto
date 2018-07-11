@@ -30,3 +30,15 @@ let createAndStart port =
     let tdAgent = new TestDictionaryAgent()
     let server = MessageServer (handleClientMessage tdAgent)
     server.StartAsync () |> Async.RunSynchronously
+
+/// An entry point that a host stub can call
+let main argv =
+    let port =
+        Array.tryItem 0 argv
+        |> Option.bind (fun x ->
+            match Int32.TryParse x with
+            | true, x -> Some x
+            | _ -> None)
+        |> Option.defaultValue 12050
+    createAndStart port
+    0
