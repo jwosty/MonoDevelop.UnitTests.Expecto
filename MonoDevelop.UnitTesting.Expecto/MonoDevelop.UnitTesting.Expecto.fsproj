@@ -21,13 +21,9 @@
     <Compile Include="ExpectoTestSuites.fs" />
     <Compile Include="Properties\AddinInfo.fs" />
     <Compile Include="SystemTestProvider.fs" />
-    <None Include="..\..\..\..\..\..\Applications\Visual Studio.app\Contents\Resources\lib\monodevelop\AddIns\FSharpBinding\FSharp.Core.dll">
-      <Link>FSharp.Core.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <PackageReference Include="MonoDevelop.Addins" Version="0.4.4" />
     <PackageReference Include="Expecto" Version="8.1.1" />
     <AddinReference Include="MonoDevelop.UnitTesting" />
-    <AddinReference Include="MonoDevelop.FSharpBinding" />
+    <ProjectReference Include="..\Expecto.RunnerServer\Expecto.RunnerServer.fsproj" />
   </ItemGroup>
 </Project>
