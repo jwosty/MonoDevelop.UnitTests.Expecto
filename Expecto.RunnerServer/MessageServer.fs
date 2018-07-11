@@ -129,6 +129,7 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
     let writeLock = new SemaphoreSlim(1, 1)
     let readLock = new SemaphoreSlim(1, 1)
 
+    // TODO: consider single-case DU for identifier
     /// A dictionary storing the client's open request IDs along with their corresponding continuations
     /// to be called when its response is recieved.
     let responseContinuations = new ConcurrentDictionary<string, Message<'TResponse> -> unit>()

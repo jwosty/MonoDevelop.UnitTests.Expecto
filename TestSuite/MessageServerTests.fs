@@ -77,6 +77,7 @@ let messageServerTests =
 
             let mutable delayRecieved = false
 
+            // TODO: rework the delay (mutexes?)
             let! getDelayed = Async.StartChild <| client.GetResponseAsync (250, "delay me")
             do! Async.Sleep 100
             let! getImmediate = Async.StartChild <| client.GetResponseAsync (0, "immediate")
