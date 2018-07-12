@@ -26,10 +26,13 @@ let handleClientMessage (tdAgent: TestDictionaryAgent) message = async {
 }
 
 /// Creates and runs a message server on the current thread
-let createAndStart port =
+let createAndStart (port: int) =
     let tdAgent = new TestDictionaryAgent()
-    let server = MessageServer (handleClientMessage tdAgent)
+    let server = MessageServer (port, handleClientMessage tdAgent)
     server.StartAsync () |> Async.RunSynchronously
+
+let connectClient port : Async<MessageClient<ServerRequest, ServerResponse>> =
+    MessageClient.ConnectAsync (Net.IPAddress.Loopback, port)
 
 /// An entry point that a host stub can call
 let main argv =

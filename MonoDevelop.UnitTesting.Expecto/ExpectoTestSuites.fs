@@ -27,7 +27,7 @@ type ExpectoTestList(name, tests: UnitTest list) as this =
 
     override this.OnRun testContext = null
 
-type ExpectoProjectTestSuite(project: DotNetProject) as this =
+type ExpectoProjectTestSuite(project: DotNetProject, testRunner: RemoteTestRunner) as this =
     inherit UnitTestGroup(project.Name, project)
 
     do
@@ -82,9 +82,9 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
 
         this.Tests.Clear ()
 
-        let rem = RemoteTestRunner.Start ()
-
         let test = TestDiscoverer.getTestFromAssemblyPath this.OutputAssembly
+
+        ()
 
         logfInfo "Discovered Expecto test: %A" test
 
