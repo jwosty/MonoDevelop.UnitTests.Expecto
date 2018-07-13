@@ -26,10 +26,11 @@ let handleClientMessage (tdAgent: TestDictionaryAgent) message = async {
 }
 
 /// Creates and runs a message server on the current thread
-let createAndStart (port: int) =
-    let tdAgent = new TestDictionaryAgent()
-    let server = MessageServer (port, handleClientMessage tdAgent)
-    server.StartAsync () |> Async.RunSynchronously
+//let createAndStart (port: int) = async {
+//    let tdAgent = new TestDictionaryAgent()
+//    let server = MessageServer (port, handleClientMessage tdAgent)
+//    return (server, server.StartAsync ())
+//}
 
 let connectClient port : Async<MessageClient<ServerRequest, ServerResponse>> =
     MessageClient.ConnectAsync (Net.IPAddress.Loopback, port)
@@ -42,7 +43,19 @@ let main argv =
             match Int32.TryParse x with
             | true, x -> Some x
             | _ -> None)
-        |> Option.defaultValue 12050
-    printfn "Test runner server listening on port %d" port
-    createAndStart port
+        |> Option.defaultValue 0
+
+
+    Async.RunSynchronously <| async {
+        let tdAgent = new TestDictionaryAgent()
+        let server = new MessageServer<_,_>(port, handleClientMessage tdAgent)
+
+        let! awaitServerExit = Async.StartChild <| server.StartAsync ()
+        // We tell the client what port we're listening on by making sure it's the first thing to go to stdout
+        // TODO: (there should probably be tests around this behavior)
+        printfn "%d" server.Port
+        printfn "Server listening on port: %d" server.Port // human-readable output as well
+        do! awaitServerExit
+        ()
+    }
     0

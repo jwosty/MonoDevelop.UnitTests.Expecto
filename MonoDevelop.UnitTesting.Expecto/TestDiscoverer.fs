@@ -14,25 +14,32 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
     interface IDisposable with
         member this.Dispose () =
             (client :> IDisposable).Dispose ()
-            serverProcess.Kill ()
+            if not serverProcess.HasExited then
+                serverProcess.Kill ()
             disposed <- true
 
     static member Start () = async {
-        let port = 12050
+        //let port = 12050
         let execDir = Path.GetDirectoryName (typeof<RemoteTestRunner>.Assembly.Location)
         let assemblyName = "Expecto.RunnerServer.Net461.exe"
         logfDebug "execDir = %s" execDir
         logfDebug "assemblyName = %s" assemblyName
         let assemblyPath = Path.Combine (execDir, assemblyName)
 
-        let startInfo = new ProcessStartInfo("mono", sprintf "%s %d" assemblyPath port,
+        let startInfo = new ProcessStartInfo("mono", sprintf "%s" assemblyPath,
                                              RedirectStandardOutput = true, RedirectStandardError = true,
                                              UseShellExecute = false)
         let proc = Process.Start startInfo
 
+        let! portStr = Async.AwaitTask <| proc.StandardOutput.ReadLineAsync ()
+        let port =
+            match Int32.TryParse portStr with
+            | true, port -> port
+            | false, _ -> raise (new FormatException(sprintf "Failed to connect to server. Server gave an invalid port number: %s" portStr))
+
         Async.Start <| async {
             let! str = Async.AwaitTask <| proc.StandardOutput.ReadLineAsync ()
-            logfInfo "(TEST SERVER MSG): %s" str
+            logfInfo "(Test server @ pid %d): %s" proc.Id str
         }
 
         // HACK: I can't believe I actually wrote this... It's really really bad but gets the job done for now
