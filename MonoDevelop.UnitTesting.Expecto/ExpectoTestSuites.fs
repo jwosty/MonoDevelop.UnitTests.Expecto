@@ -1,19 +1,23 @@
 ﻿namespace MonoDevelop.UnitTesting.Expecto
-open System
-open System.IO
-open System.Threading.Tasks
+open Expecto.RunnerServer.TestRunnerServer
 open MonoDevelop.Core
 open MonoDevelop.Projects
 open MonoDevelop.UnitTesting
 open MonoDevelop.Ide
+open System
+open System.IO
+open System.Threading.Tasks
 open global.Expecto
 
-type TestCase = { code: TestCode; state: FocusState }
+//type TestCase = { code: TestCode; state: FocusState }
 
-type ExpectoTestCase(name, testCase) =
-    inherit UnitTest(HelperFunctions.ensureNonEmptyName name)
+type ExpectoTestCase(id: Guid, flatTest: FlatTestInfo) =
+    inherit UnitTest(HelperFunctions.ensureNonEmptyName flatTest.name)
 
-    new(name, f, focus) = new ExpectoTestCase(name, { code = TestCode.Sync f; state = focus })
+    //new(name, f, focus) = new ExpectoTestCase(name, { code = TestCode.Sync f; state = focus })
+
+    member this.Id = id
+    member this.ExpectoTest = flatTest
 
     override this.OnRun testContext = null
 
@@ -82,38 +86,51 @@ type ExpectoProjectTestSuite(project: DotNetProject, testRunner: RemoteTestRunne
 
         this.Tests.Clear ()
 
-        let test = TestDiscoverer.getTestFromAssemblyPath this.OutputAssembly
+        //let test = TestDiscoverer.getTestFromAssemblyPath this.OutputAssembly
 
-        ()
+        Async.RunSynchronously <| async {
+            try
+                let! tests = testRunner.Client.GetResponseAsync (ServerRequest.LoadTestsFromAssembly this.OutputAssembly)
+                match tests with
+                | ServerResponse.TestList tests ->
+                    match tests with
+                    | Ok tests ->
+                        logfInfo "Discovered Expecto test: %A" tests
 
-        logfInfo "Discovered Expecto test: %A" test
+                        for test in Adapter.TryCreateMDTest tests do
+                            this.Tests.Add test
 
-        match Option.bind Adapter.TryCreateMDTest test with
-        | Some test -> this.Tests.Add test
-        | None -> ()
+                    | Error exnString ->
+                        logfError "Server error while loading tests from '%s': %s" this.OutputAssembly exnString
+            with e ->
+                logfError "Erorr while loading tests '%s': %A" this.OutputAssembly e
+        }
+
 
     /// Just calls RebuildTestTree()
     override this.OnCreateTests () = this.RebuildTestTree ()
 
 
 and Adapter =
-    static member TryCreateMDTests (tests, label) =
-        let mdTests = List.choose (fun t -> Adapter.TryCreateMDTest t) tests
-        new ExpectoTestList(label, mdTests)
+    //static member TryCreateMDTests (tests, label) =
+        //let mdTests = List.choose (fun t -> Adapter.TryCreateMDTest t) tests
+        //new ExpectoTestList(label, mdTests)
 
     /// Creates a MonoDevelop/VSfM test tree from an Expecto lib test
-    static member TryCreateMDTest (test: Test, ?label) : UnitTest option =
-        let label = defaultArg label ""
-        match test with
-        | TestLabel (subLabel, test, state) ->
-            let label' =
-                if label = "" then subLabel
-                else sprintf "%s/%s" label subLabel
-            logfInfo "using label: %s" label'
-            Adapter.TryCreateMDTest (test, label')
-        | TestCase (code, state) -> Some (upcast new ExpectoTestCase(label, { code = code; state = state }))
-        | TestList ([test], state) -> Adapter.TryCreateMDTest (test, label)
-        | TestList (tests, state) -> Some (upcast Adapter.TryCreateMDTests (tests, label))
-        | Test.Sequenced _ ->
-            logfError "Expecto sequenced tests not implemented yet!"
-            None
+    //static member TryCreateMDTest (test: Test, ?label) : UnitTest option =
+        //let label = defaultArg label ""
+        //match test with
+        //| TestLabel (subLabel, test, state) ->
+        //    let label' =
+        //        if label = "" then subLabel
+        //        else sprintf "%s/%s" label subLabel
+        //    logfInfo "using label: %s" label'
+        //    Adapter.TryCreateMDTest (test, label')
+        //| TestCase (code, state) -> Some (upcast new ExpectoTestCase(label, { code = code; state = state }))
+        //| TestList ([test], state) -> Adapter.TryCreateMDTest (test, label)
+        //| TestList (tests, state) -> Some (upcast Adapter.TryCreateMDTests (tests, label))
+        //| Test.Sequenced _ ->
+            //logfError "Expecto sequenced tests not implemented yet!"
+            //None
+
+    static member TryCreateMDTest tests = tests |> List.map (fun (id, testInfo) -> new ExpectoTestCase(id, testInfo))
