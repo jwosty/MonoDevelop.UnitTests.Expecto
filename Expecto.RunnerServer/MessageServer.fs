@@ -127,8 +127,10 @@ module MessageServer =
         server.Start ()
         server
 
-// TODO: implement IDisposable
 type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
+    let mutable disposed = false
+    let responseLoopCanceller = new CancellationTokenSource()
+
     let writeLock = new SemaphoreSlim(1, 1)
     let readLock = new SemaphoreSlim(1, 1)
 
@@ -148,9 +150,9 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
     /// any of this client's requests.
     member this.OnInvalidResponse = onInvalidResponse_Published
 
-    new() = MessageClient(new TcpClient())
+    new() = new MessageClient<_,_>(new TcpClient())
 
-    member private this.HandleResponseLoop stream = async {
+    member private this.HandleResponseLoop (stream: Stream) = async {
         while true do
             // listen for a response, then route it to the correct continuation
             try
@@ -168,8 +170,17 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
     member this.ConnectAsync (address: IPAddress, port) = async {
         do! Async.AwaitTask (tcpClient.ConnectAsync (address, port))
         let stream = tcpClient.GetStream ()
-        Async.Start <| this.HandleResponseLoop stream
+        Async.Start (this.HandleResponseLoop stream, responseLoopCanceller.Token)
     }
+
+    member this.Close () = (this :> IDisposable).Dispose ()
+
+    interface IDisposable with
+        member this.Dispose () =
+            if not disposed then
+                responseLoopCanceller.Cancel ()
+                tcpClient.Dispose ()
+                disposed <- true
 
     /// Asynchronously waits until a request's response is recieved.
     member private this.AwaitResponseAsync request = async {

@@ -6,8 +6,16 @@ open System.Reflection
 open Expecto
 open Expecto.RunnerServer
 
-type RemoteTestRunner(client: MessageClient<_,_>) =
+type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
+    let mutable disposed = false
+
     member this.Client = client
+
+    interface IDisposable with
+        member this.Dispose () =
+            (client :> IDisposable).Dispose ()
+            serverProcess.Kill ()
+            disposed <- true
 
     static member Start () = async {
         let port = 12050
@@ -43,7 +51,7 @@ type RemoteTestRunner(client: MessageClient<_,_>) =
                 logfDebug "Failed to open connection to test runner server; retrying..."
 
         match client with
-        | Some client -> return new RemoteTestRunner(client)
+        | Some client -> return new RemoteTestRunner(client, proc)
         | None -> return failwith "Client failed to connect to server after 100 retries (every 100ms)"
     }
 

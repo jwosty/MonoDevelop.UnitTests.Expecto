@@ -31,7 +31,7 @@ type ExpectoTestList(name, tests: UnitTest list) as this =
 
     override this.OnRun testContext = null
 
-type ExpectoProjectTestSuite(project: DotNetProject, testRunner: RemoteTestRunner) as this =
+type ExpectoProjectTestSuite(project: DotNetProject) as this =
     inherit UnitTestGroup(project.Name, project)
 
     do
@@ -53,7 +53,7 @@ type ExpectoProjectTestSuite(project: DotNetProject, testRunner: RemoteTestRunne
     override this.Refresh ct =
         logfInfo "Test tree refresh requested"
         let refresh = async {
-            this.RebuildTestTree ()
+            do! this.RebuildTestTree ()
             do! Async.AwaitTask (this.RefreshBase ct)
         }
         Async.StartAsTask (refresh, cancellationToken = ct) :> _
@@ -81,15 +81,13 @@ type ExpectoProjectTestSuite(project: DotNetProject, testRunner: RemoteTestRunne
 
     /// Reconstructs the test tree using the output assembly generated from the last build. Calling OnCreateTests()
     /// will have exactly the same results.
-    member private this.RebuildTestTree () =
+    member private this.RebuildTestTree () = async {
         logfInfo "Refreshing project test tree"
 
         this.Tests.Clear ()
 
-        //let test = TestDiscoverer.getTestFromAssemblyPath this.OutputAssembly
-
-        Async.RunSynchronously <| async {
-            try
+        try
+            use! testRunner = RemoteTestRunner.Start () in
                 let! tests = testRunner.Client.GetResponseAsync (ServerRequest.LoadTestsFromAssembly this.OutputAssembly)
                 match tests with
                 | ServerResponse.TestList tests ->
@@ -102,13 +100,15 @@ type ExpectoProjectTestSuite(project: DotNetProject, testRunner: RemoteTestRunne
 
                     | Error exnString ->
                         logfError "Server error while loading tests from '%s': %s" this.OutputAssembly exnString
-            with e ->
-                logfError "Erorr while loading tests '%s': %A" this.OutputAssembly e
+            logfInfo "Client closed."
+        with e ->
+            logfError "Error while loading tests '%s': %A" this.OutputAssembly e
         }
 
 
     /// Just calls RebuildTestTree()
-    override this.OnCreateTests () = this.RebuildTestTree ()
+    override this.OnCreateTests () =
+        Async.RunSynchronously (this.RebuildTestTree (), 10_000)
 
 
 and Adapter =
