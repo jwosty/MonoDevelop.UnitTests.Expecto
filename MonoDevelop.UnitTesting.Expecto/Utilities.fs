@@ -9,11 +9,14 @@ open Microsoft.FSharp.Core.Printf
 
 [<AutoOpen>]
 module Logging =
-    let logf logLevel fmt = kprintf (fun str -> LoggingService.Log (logLevel, str)) fmt
-    let logfInfo fmt = kprintf LoggingService.LogInfo fmt
-    let logfDebug fmt = kprintf LoggingService.LogDebug fmt
-    let logfWarning fmt = kprintf LoggingService.LogWarning fmt
-    let logfError fmt = kprintf LoggingService.LogDebug fmt
+    let inline private log logLevel str =
+        LoggingService.Log (logLevel, sprintf "Expecto test extension: %s" str)
+
+    let logf logLevel fmt = kprintf (log logLevel) fmt
+    let logfInfo fmt = kprintf (log LogLevel.Info) fmt
+    let logfDebug fmt = kprintf (log LogLevel.Debug) fmt
+    let logfWarning fmt = kprintf (log LogLevel.Warn) fmt
+    let logfError fmt = kprintf (log LogLevel.Error) fmt
 
 module HelperFunctions =
     let ensureNonEmptyName name =
