@@ -19,7 +19,6 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
             disposed <- true
 
     static member Start () = async {
-        //let port = 12050
         let execDir = Path.GetDirectoryName (typeof<RemoteTestRunner>.Assembly.Location)
         let assemblyName = "Expecto.RunnerServer.Net461.exe"
         logfDebug "execDir = %s" execDir

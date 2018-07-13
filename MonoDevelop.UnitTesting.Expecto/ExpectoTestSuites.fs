@@ -9,14 +9,46 @@ open System.IO
 open System.Threading.Tasks
 open global.Expecto
 
-type ExpectoTestCase(name: string, id: Guid) =
+type ExpectoTestCase(fullName: string, name: string, id: Guid, getTestRunner) =
     inherit UnitTest(HelperFunctions.ensureNonEmptyName name)
 
     //new(name, f, focus) = new ExpectoTestCase(name, { code = TestCode.Sync f; state = focus })
 
+    //member val GetTestRunner = (fun () -> async { return None } ) with get, set
+
     member this.Id = id
 
-    override this.OnRun testContext = null
+    member this.OnRunAsync () : Async<UnitTestResult option> = async {
+        let (testRunner: RemoteTestRunner) = getTestRunner ()
+        let! result = testRunner.Client.GetResponseAsync (ServerRequest.RunTest id)
+        match result with
+        | ServerResponse.TestResult (Ok testResult as x) ->
+            printfn "Got test result for '%A': %A" fullName x
+            match testResult.result with
+            | Impl.TestResult.Passed ->
+                return Some (UnitTestResult.CreateSuccess ())
+            | Impl.TestResult.Error e ->
+                return Some (UnitTestResult.CreateFailure e)
+            | Impl.TestResult.Failed msg ->
+                // TODO: re-examine this and see if we can do something better, since the normal Expecto test results don't report the FailedException...
+                return Some (UnitTestResult.CreateFailure (new Exception(msg)))
+            | Impl.TestResult.Ignored msg ->
+                return Some (UnitTestResult.CreateIgnored msg)
+        | ServerResponse.TestResult (Error errStr as x) ->
+            logfInfo "Got test result for '%A': %A" fullName x
+            logfError "Remote error reported while executing test (test fullName, id = %A): %A" (fullName, id) errStr
+            return None
+        | _ ->
+            logfError "Remote test runner gave unexpected response (expected test execution result) (test fullName, id = %A): %A" (fullName, id) result
+            return None
+    }
+
+    override this.OnRun testContext =
+        Async.RunSynchronously <| async {
+            let! result = this.OnRunAsync ()
+            return Option.toObj result
+        }
+        
 
 type ExpectoTestList(name, tests: UnitTest list) as this =
     inherit UnitTestGroup(HelperFunctions.ensureNonEmptyName name)
@@ -26,17 +58,34 @@ type ExpectoTestList(name, tests: UnitTest list) as this =
 
     override this.HasTests = true
 
-    override this.OnRun testContext = null
+    override this.OnRun testContext =
+        for test in this.Tests do
+            test.Run testContext |> ignore
+        null
 
 type Tree<'Label, 'T> = | Node of 'Label * (Tree<'Label, 'T> list) | Leaf of 'Label * 'T
 
 type ExpectoProjectTestSuite(project: DotNetProject) as this =
     inherit UnitTestGroup(project.Name, project)
 
+    let mutable testRunner = Async.RunSynchronously <| RemoteTestRunner.Start ()
+
     do
         IdeApp.ProjectOperations.EndBuild.Add (fun e ->
             if e.Success then
                 this.Refresh () |> ignore)
+
+    // TODO: determine what, if anything, needs to be done to make this thread safe.
+    // Off the top of my head, there could be badness if testRunner gets disposed while TestCase objects using it are running
+    member this.RestartTestRunnerAsync () = async {
+        logfInfo "Restarting remote test runner..."
+        (testRunner :> IDisposable).Dispose ()
+        logfInfo "Old test runner client closed."
+        let! newTestRunner = RemoteTestRunner.Start ()
+        testRunner <- newTestRunner
+    }
+
+    member this.GetTestRunner () = testRunner
 
     member this.OutputAssembly = project.GetOutputFileName(IdeApp.Workspace.ActiveConfiguration).FullPath.ToString()
 
@@ -71,7 +120,8 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
             logfInfo "Preparing to run tests"
             do! Async.AwaitTask (this.Build ())
             logfInfo "Project built; running tests"
-            // TODO: implement
+            for test in this.Tests do
+                test.Run testContext |> ignore
             return new UnitTestResult()
         }
 
@@ -86,20 +136,21 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
         this.Tests.Clear ()
 
         try
-            use! testRunner = RemoteTestRunner.Start () in
-                let! tests = testRunner.Client.GetResponseAsync (ServerRequest.LoadTestsFromAssembly this.OutputAssembly)
+            do! this.RestartTestRunnerAsync ()
+            let! tests = testRunner.Client.GetResponseAsync (ServerRequest.LoadTestsFromAssembly this.OutputAssembly)
+            match tests with
+            | ServerResponse.TestList tests ->
                 match tests with
-                | ServerResponse.TestList tests ->
-                    match tests with
-                    | Ok tests ->
-                        logfInfo "Discovered Expecto test: %A" tests
+                | Ok tests ->
+                    logfInfo "Discovered Expecto test: %A" tests
 
-                        for test in Adapter.TryCreateMDTest tests do
-                            this.Tests.Add test
+                    for test in Adapter.TryCreateMDTest this.GetTestRunner tests do
+                        this.Tests.Add test
 
-                    | Error exnString ->
-                        logfError "Server error while loading tests from '%s': %s" this.OutputAssembly exnString
-            logfInfo "Client closed."
+                | Error exnString ->
+                    logfError "Server error while loading tests from '%s': %s" this.OutputAssembly exnString
+            | _ -> failwithf "Server gave unexpected response (expected list of tests to load): %A" tests
+            
         with e ->
             logfError "Error while loading tests '%s': %A" this.OutputAssembly e
         }
@@ -132,7 +183,7 @@ and Adapter =
             //logfError "Expecto sequenced tests not implemented yet!"
             //None
 
-    static member TryCreateMDTest (tests: (Guid * FlatTestInfo) list) =
+    static member TryCreateMDTest getTestRunner (tests: (Guid * FlatTestInfo) list) =
         // This is not the right solution. I should really rebuild some kind of serializable tree structure that we can transmit over
         // the wire (can't be a normal Test object since you can't serialize the lambdas they contain)
 
@@ -168,7 +219,7 @@ and Adapter =
                     yield makeNode (parentName, children) ]
         
         let makeTestList (name, children) = new ExpectoTestList (name, children) :> UnitTest
-        let makeTestCase (name, id) = new ExpectoTestCase (name, id) :> UnitTest
+        let makeTestCase (name, (fullName, id)) = new ExpectoTestCase (fullName, name, id, getTestRunner) :> UnitTest
 
-        tests |> List.map (fun (id, testInfo) -> testInfo.name, id)
+        tests |> List.map (fun (id, testInfo) -> testInfo.name, (testInfo.name, id))
         |> buildTree makeTestList makeTestCase

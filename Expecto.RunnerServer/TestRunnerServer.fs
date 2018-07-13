@@ -10,8 +10,12 @@ module FlatTestInfo =
     let fromFlatTest (test: FlatTest) =
         { name = test.name; state = test.state; focusOn = test.focusOn; sequenced = test.sequenced }
 
-type ServerRequest = | LoadTestsFromAssembly of assemblyPath: string
-type ServerResponse = | TestList of Result<(Guid * FlatTestInfo) list, string>
+type ServerRequest =
+    | LoadTestsFromAssembly of assemblyPath: string
+    | RunTest of Guid
+type ServerResponse =
+    | TestList of Result<(Guid * FlatTestInfo) list, string>
+    | TestResult of Result<Impl.TestSummary, string>
 
 let handleClientMessage (tdAgent: TestDictionaryAgent) message = async {
     match message with
@@ -23,6 +27,15 @@ let handleClientMessage (tdAgent: TestDictionaryAgent) message = async {
                 loadedTests |> List.map (fun (testId, test) -> testId, FlatTestInfo.fromFlatTest test)
             return TestList (Ok testInfoItems)
         | Error e -> return TestList (Error (e.ToString ()))
+    | RunTest testId ->
+        let! testResultGetter = tdAgent.PostAndAsyncReply (TestDictionaryMessage.TryGetTestResultGetter testId)
+        match testResultGetter with
+        | Some getTestResult ->
+            let! testResult = getTestResult
+            match testResult with
+            | Ok testSummary -> return TestResult (Ok testSummary)
+            | Error e -> return TestResult (Error (e.ToString ()))
+        | None -> return TestResult (Error (sprintf "No test found with id %A." testId))
 }
 
 /// Creates and runs a message server on the current thread
