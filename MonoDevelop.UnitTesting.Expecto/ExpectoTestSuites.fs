@@ -9,15 +9,12 @@ open System.IO
 open System.Threading.Tasks
 open global.Expecto
 
-//type TestCase = { code: TestCode; state: FocusState }
-
-type ExpectoTestCase(id: Guid, flatTest: FlatTestInfo) =
-    inherit UnitTest(HelperFunctions.ensureNonEmptyName flatTest.name)
+type ExpectoTestCase(name: string, id: Guid) =
+    inherit UnitTest(HelperFunctions.ensureNonEmptyName name)
 
     //new(name, f, focus) = new ExpectoTestCase(name, { code = TestCode.Sync f; state = focus })
 
     member this.Id = id
-    member this.ExpectoTest = flatTest
 
     override this.OnRun testContext = null
 
@@ -30,6 +27,8 @@ type ExpectoTestList(name, tests: UnitTest list) as this =
     override this.HasTests = true
 
     override this.OnRun testContext = null
+
+type Tree<'Label, 'T> = | Node of 'Label * (Tree<'Label, 'T> list) | Leaf of 'Label * 'T
 
 type ExpectoProjectTestSuite(project: DotNetProject) as this =
     inherit UnitTestGroup(project.Name, project)
@@ -133,4 +132,43 @@ and Adapter =
             //logfError "Expecto sequenced tests not implemented yet!"
             //None
 
-    static member TryCreateMDTest tests = tests |> List.map (fun (id, testInfo) -> new ExpectoTestCase(id, testInfo))
+    static member TryCreateMDTest (tests: (Guid * FlatTestInfo) list) =
+        // This is not the right solution. I should really rebuild some kind of serializable tree structure that we can transmit over
+        // the wire (can't be a normal Test object since you can't serialize the lambdas they contain)
+
+
+        let rec buildTree (makeNode: string * ('Tree list) -> 'Tree)
+                          (makeLeaf: (string * 'a -> 'Tree))
+                          (leaves: (string * 'a) list)
+                          : 'Tree list =
+            // group everything by top-level path
+            let groups =
+                leaves |> List.map (fun (leafPath: string, leafValue) ->
+                    // the `2` argument means that it will not return an array of length > 2, so we don't have to cover those cases
+                    // also, empty array case doesn't happen
+                    match leafPath.Split ([|'/'|], 2) with
+                    // leaf
+                    | [|leafName|] | [|"";leafName|] -> None, (leafName, leafValue)
+                    // node
+                    | [|parent;leafPath|] -> Some parent, (leafPath, leafValue))
+                |> List.groupBy fst
+
+            [for group in groups do
+                match group with
+                // leaf
+                | None, children ->
+                    let children = children |> List.map (fun (_, (leafName, leafValue)) -> makeLeaf (leafName, leafValue))
+                    yield! children
+                // node
+                | Some parentName, children -> 
+                    let children =
+                        children
+                        |> List.map (fun (_, (leafPath, leafValue)) -> (leafPath, leafValue))
+                    let children = buildTree makeNode makeLeaf children
+                    yield makeNode (parentName, children) ]
+        
+        let makeTestList (name, children) = new ExpectoTestList (name, children) :> UnitTest
+        let makeTestCase (name, id) = new ExpectoTestCase (name, id) :> UnitTest
+
+        tests |> List.map (fun (id, testInfo) -> testInfo.name, id)
+        |> buildTree makeTestList makeTestCase
