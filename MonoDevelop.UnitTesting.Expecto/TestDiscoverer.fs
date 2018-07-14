@@ -41,24 +41,11 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
             logfInfo "(Test server @ pid %d): %s" proc.Id str
         }
 
-        // HACK: I can't believe I actually wrote this... It's really really bad but gets the job done for now
-        let mutable retriesLeft = 100
-        let mutable client = None
-        while (Option.isNone client && retriesLeft > 0) do
-            try
-                logfDebug "Attempting to connect to test runner server"
-                let! c = TestRunnerServer.connectClient port
-                client <- Some c
-                logfDebug "Connected to test runner server successfully"
-            with e ->
-                ignore e
-                // we can't catch just `SocketException`s because something is wrapping it in a System.Exception
-                do! Async.Sleep 100
-                logfDebug "Failed to open connection to test runner server; retrying..."
+        logfDebug "Attempting to connect to test runner server"
+        let! client = TestRunnerServer.connectClient port
+        logfDebug "Connected to test runner server successfully"
 
-        match client with
-        | Some client -> return new RemoteTestRunner(client, proc)
-        | None -> return failwith "Client failed to connect to server after 100 retries (every 100ms)"
+        return new RemoteTestRunner(client, proc)
     }
 
 module TestDiscoverer =
