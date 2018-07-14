@@ -21,3 +21,5 @@ module Logging =
 module HelperFunctions =
     let ensureNonEmptyName name =
         if String.IsNullOrEmpty name then "(Unnamed)" else name
+
+    let inline inc (x: byref<_>) = x <- x + 1

@@ -12,43 +12,51 @@ open global.Expecto
 type ExpectoTestCase(fullName: string, name: string, id: Guid, getTestRunner) =
     inherit UnitTest(HelperFunctions.ensureNonEmptyName name)
 
-    //new(name, f, focus) = new ExpectoTestCase(name, { code = TestCode.Sync f; state = focus })
-
-    //member val GetTestRunner = (fun () -> async { return None } ) with get, set
-
+    let convertTestResult = function
+        | Impl.TestResult.Passed ->
+            let mutable result = UnitTestResult.CreateSuccess ()
+            result.Passed <- 1
+            result
+        | Impl.TestResult.Error e ->
+            let mutable result = UnitTestResult.CreateFailure e
+            result.Errors <- 1
+            result
+        | Impl.TestResult.Failed msg ->
+            // TODO: re-examine this and see if we can do something better, since the normal Expecto test results don't report the FailedException...
+            let result = UnitTestResult.CreateFailure (new Exception(msg))
+            result.Failures <- 1
+            result
+        | Impl.TestResult.Ignored msg ->
+            let result = UnitTestResult.CreateIgnored msg
+            result.Ignored <- 1
+            result
+    
     member this.Id = id
 
-    member this.OnRunAsync () : Async<UnitTestResult option> = async {
+    member this.OnRunAsync () : Async<UnitTestResult> = async {
         let (testRunner: RemoteTestRunner) = getTestRunner ()
         let! result = testRunner.Client.GetResponseAsync (ServerRequest.RunTest id)
         match result with
         | ServerResponse.TestResult (Ok testResult as x) ->
-            printfn "Got test result for '%A': %A" fullName x
-            match testResult.result with
-            | Impl.TestResult.Passed ->
-                return Some (UnitTestResult.CreateSuccess ())
-            | Impl.TestResult.Error e ->
-                return Some (UnitTestResult.CreateFailure e)
-            | Impl.TestResult.Failed msg ->
-                // TODO: re-examine this and see if we can do something better, since the normal Expecto test results don't report the FailedException...
-                return Some (UnitTestResult.CreateFailure (new Exception(msg)))
-            | Impl.TestResult.Ignored msg ->
-                return Some (UnitTestResult.CreateIgnored msg)
+            logfInfo "Got test result for '%A': %A" fullName x
+            return convertTestResult testResult.result
         | ServerResponse.TestResult (Error errStr as x) ->
             logfInfo "Got test result for '%A': %A" fullName x
             logfError "Remote error reported while executing test (test fullName, id = %A): %A" (fullName, id) errStr
-            return None
+            let result = UnitTestResult.CreateFailure (new Exception(sprintf "Internal test runner error: %s" errStr))
+            result.Errors <- 1
+            return result
         | _ ->
-            logfError "Remote test runner gave unexpected response (expected test execution result) (test fullName, id = %A): %A" (fullName, id) result
-            return None
+            let msg =
+                sprintf "Remote test runner gave unexpected response (expected test execution result) (test fullName, id = %A): %A" (fullName, id) result
+            logfError "%s" msg
+            let result = UnitTestResult.CreateFailure (new Exception(msg))
+            result.Errors <- 1
+            return result
     }
 
     override this.OnRun testContext =
-        Async.RunSynchronously <| async {
-            let! result = this.OnRunAsync ()
-            return Option.toObj result
-        }
-        
+        Async.RunSynchronously (this.OnRunAsync ())
 
 type ExpectoTestList(name, tests: UnitTest list) as this =
     inherit UnitTestGroup(HelperFunctions.ensureNonEmptyName name)
@@ -59,9 +67,11 @@ type ExpectoTestList(name, tests: UnitTest list) as this =
     override this.HasTests = true
 
     override this.OnRun testContext =
+        let mdResult = UnitTestResult.CreateSuccess ()
         for test in this.Tests do
-            test.Run testContext |> ignore
-        null
+            let result = test.Run testContext
+            mdResult.Add result
+        mdResult
 
 type Tree<'Label, 'T> = | Node of 'Label * (Tree<'Label, 'T> list) | Leaf of 'Label * 'T
 
@@ -120,9 +130,12 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
             logfInfo "Preparing to run tests"
             do! Async.AwaitTask (this.Build ())
             logfInfo "Project built; running tests"
+            let mdResult = UnitTestResult.CreateSuccess ()
             for test in this.Tests do
-                test.Run testContext |> ignore
-            return new UnitTestResult()
+                let result = test.Run testContext
+                mdResult.Add result
+            logfInfo "mdResult = %A" mdResult
+            return mdResult
         }
 
     // If this were to return false, the group wouldn't show up in the pane, preventing tests from even being populated
