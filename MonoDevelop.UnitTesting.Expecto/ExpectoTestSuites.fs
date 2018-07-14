@@ -80,9 +80,9 @@ type Tree<'Label, 'T> = | Node of 'Label * (Tree<'Label, 'T> list) | Leaf of 'La
 type ExpectoProjectTestSuite(project: DotNetProject) as this =
     inherit UnitTestGroup(project.Name, project)
 
-    let mutable testRunner = Async.RunSynchronously <| RemoteTestRunner.Start ()
-    let theLock = new SemaphoreSlim(1, 1)
     let testRunnerRestartLock = new SemaphoreSlim(1, 1)
+    let theLock = new SemaphoreSlim(1, 1)
+    let mutable testRunner = Async.RunSynchronously <| acquireAsync testRunnerRestartLock RemoteTestRunner.Start
 
     do
         IdeApp.ProjectOperations.EndBuild.Add (fun e ->
