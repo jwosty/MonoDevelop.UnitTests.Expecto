@@ -15,6 +15,7 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
         member this.Dispose () =
             (client :> IDisposable).Dispose ()
             if not serverProcess.HasExited then
+                logfDebug "Closing server process with PID %A" serverProcess.Id
                 serverProcess.Kill ()
             disposed <- true
 
@@ -38,7 +39,7 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
 
         Async.Start <| async {
             let! str = Async.AwaitTask <| proc.StandardOutput.ReadLineAsync ()
-            logfInfo "(Test server @ pid %d): %s" proc.Id str
+            logfDebug "(Test server @ pid %d): %s" proc.Id str
         }
 
         logfDebug "Attempting to connect to test runner server"

@@ -1,4 +1,5 @@
 ﻿namespace MonoDevelop.UnitTesting.Expecto
+open Expecto.RunnerServer
 open Expecto.RunnerServer.TestRunnerServer
 open MonoDevelop.Core
 open MonoDevelop.Projects
@@ -6,6 +7,7 @@ open MonoDevelop.UnitTesting
 open MonoDevelop.Ide
 open System
 open System.IO
+open System.Threading
 open System.Threading.Tasks
 open global.Expecto
 
@@ -79,6 +81,8 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
     inherit UnitTestGroup(project.Name, project)
 
     let mutable testRunner = Async.RunSynchronously <| RemoteTestRunner.Start ()
+    let theLock = new SemaphoreSlim(1, 1)
+    let testRunnerRestartLock = new SemaphoreSlim(1, 1)
 
     do
         IdeApp.ProjectOperations.EndBuild.Add (fun e ->
@@ -87,13 +91,13 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
 
     // TODO: determine what, if anything, needs to be done to make this thread safe.
     // Off the top of my head, there could be badness if testRunner gets disposed while TestCase objects using it are running
-    member this.RestartTestRunnerAsync () = async {
+    member this.RestartTestRunnerAsync () = acquireAsync testRunnerRestartLock (fun () -> async {
         logfInfo "Restarting remote test runner..."
         (testRunner :> IDisposable).Dispose ()
         logfInfo "Old test runner client closed."
         let! newTestRunner = RemoteTestRunner.Start ()
         testRunner <- newTestRunner
-    }
+    })
 
     member this.GetTestRunner () = testRunner
 
@@ -126,7 +130,7 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
         //} :> _
 
     override this.OnRun testContext =
-        Async.RunSynchronously <| async {
+        Async.RunSynchronously <| acquireAsync theLock (fun () -> async {
             logfInfo "Preparing to run tests"
             do! Async.AwaitTask (this.Build ())
             logfInfo "Project built; running tests"
@@ -136,37 +140,40 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
                 mdResult.Add result
             logfInfo "mdResult = %A" mdResult
             return mdResult
-        }
+        })
 
     // If this were to return false, the group wouldn't show up in the pane, preventing tests from even being populated
     override this.HasTests = true
 
     /// Reconstructs the test tree using the output assembly generated from the last build. Calling OnCreateTests()
     /// will have exactly the same results.
-    member private this.RebuildTestTree () = async {
-        logfInfo "Refreshing project test tree"
+    member private this.RebuildTestTree () =
+        acquireAsync theLock (fun () -> async {
+            logfInfo "Refreshing project test tree"
 
-        this.Tests.Clear ()
 
-        try
-            do! this.RestartTestRunnerAsync ()
-            let! tests = testRunner.Client.GetResponseAsync (ServerRequest.LoadTestsFromAssembly this.OutputAssembly)
-            match tests with
-            | ServerResponse.TestList tests ->
+            this.Tests.Clear ()
+
+            try
+                do! this.RestartTestRunnerAsync ()
+                let! tests = testRunner.Client.GetResponseAsync (ServerRequest.LoadTestsFromAssembly this.OutputAssembly)
                 match tests with
-                | Ok tests ->
-                    logfInfo "Discovered Expecto test: %A" tests
+                | ServerResponse.TestList tests ->
+                    match tests with
+                    | Ok tests ->
+                        logfInfo "Discovered Expecto test: %A" tests
 
-                    for test in Adapter.TryCreateMDTest this.GetTestRunner tests do
-                        this.Tests.Add test
+                        for test in Adapter.TryCreateMDTest this.GetTestRunner tests do
+                            this.Tests.Add test
 
-                | Error exnString ->
-                    logfError "Server error while loading tests from '%s': %s" this.OutputAssembly exnString
-            | _ -> failwithf "Server gave unexpected response (expected list of tests to load): %A" tests
-            
-        with e ->
-            logfError "Error while loading tests '%s': %A" this.OutputAssembly e
-        }
+                    | Error exnString ->
+                        logfError "Server error while loading tests from '%s': %s" this.OutputAssembly exnString
+                | _ -> failwithf "Server gave unexpected response (expected list of tests to load): %A" tests
+                
+            with e ->
+                logfError "Error while loading tests '%s': %A" this.OutputAssembly e
+            }
+        )
 
 
     /// Just calls RebuildTestTree()
