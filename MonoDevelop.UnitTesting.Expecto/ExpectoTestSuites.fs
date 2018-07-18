@@ -80,6 +80,9 @@ type Tree<'Label, 'T> = | Node of 'Label * (Tree<'Label, 'T> list) | Leaf of 'La
 type ExpectoProjectTestSuite(project: DotNetProject) as this =
     inherit UnitTestGroup(project.Name, project)
 
+    do
+        logfInfo "ExpectoProjectTestSuite ctor called"
+
     let testRunnerRestartLock = new SemaphoreSlim(1, 1)
     let theLock = new SemaphoreSlim(1, 1)
 

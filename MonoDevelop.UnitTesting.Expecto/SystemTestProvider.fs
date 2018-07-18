@@ -9,7 +9,12 @@ type SystemTestProvider() =
         member this.CreateUnitTest entry =
             match entry with
             | :? DotNetProject as project ->
-                Some (new ExpectoProjectTestSuite(project) :> UnitTest)
+                try
+                    logfInfo "Creating test suite"
+                    Some (new ExpectoProjectTestSuite(project) :> UnitTest)
+                with e ->
+                    logfError "Exception caught inside SystemTestProvider.CreateUnitTest: %A" e
+                    None
             | _ -> None
             |> Option.toObj
 

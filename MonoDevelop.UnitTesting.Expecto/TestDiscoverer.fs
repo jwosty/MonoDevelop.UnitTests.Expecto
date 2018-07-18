@@ -15,15 +15,15 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
         member this.Dispose () =
             (client :> IDisposable).Dispose ()
             if not serverProcess.HasExited then
-                logfDebug "Closing server process with PID %A" serverProcess.Id
+                logfInfo "Closing server process with PID %A" serverProcess.Id
                 serverProcess.Kill ()
             disposed <- true
 
     static member Start () = async {
         let execDir = Path.GetDirectoryName (typeof<RemoteTestRunner>.Assembly.Location)
         let assemblyName = "Expecto.RunnerServer.Net461.exe"
-        logfDebug "execDir = %s" execDir
-        logfDebug "assemblyName = %s" assemblyName
+        logfInfo "execDir = %s" execDir
+        logfInfo "assemblyName = %s" assemblyName
         let assemblyPath = Path.Combine (execDir, assemblyName)
 
         let startInfo = new ProcessStartInfo("mono", sprintf "%s" assemblyPath,
@@ -31,20 +31,26 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
                                              UseShellExecute = false)
         let proc = Process.Start startInfo
 
+
+        Async.Start <| async {
+            let! str = Async.AwaitTask <| proc.StandardError.ReadLineAsync ()
+            logfError "(Test server @ pid %d): %s" proc.Id str
+        }
+
         let! portStr = Async.AwaitTask <| proc.StandardOutput.ReadLineAsync ()
         let port =
             match Int32.TryParse portStr with
             | true, port -> port
-            | false, _ -> raise (new FormatException(sprintf "Failed to connect to server. Server gave an invalid port number: %s" portStr))
+            | false, _ -> raise (new FormatException(sprintf "Failed to connect to server. Server gave an invalid port number: '%s'" portStr))
 
         Async.Start <| async {
             let! str = Async.AwaitTask <| proc.StandardOutput.ReadLineAsync ()
-            logfDebug "(Test server @ pid %d): %s" proc.Id str
+            logfInfo "(Test server @ pid %d): %s" proc.Id str
         }
 
-        logfDebug "Attempting to connect to test runner server"
+        logfInfo "Attempting to connect to test runner server"
         let! client = TestRunnerServer.connectClient port
-        logfDebug "Connected to test runner server successfully"
+        logfInfo "Connected to test runner server successfully"
 
         return new RemoteTestRunner(client, proc)
     }
