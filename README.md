@@ -3,6 +3,14 @@
 
 This project is in its early stages. Contributions are always welcome.
 
+## Test discovery
+The addin currently discovers tests by searching the user assemblies for `TestsAttribute`, as in:
+
+```fsharp
+[<Tests>]
+let test1 = test "hello world" { () }
+```
+
 ## Building and running
 Open MonoDevelop.UnitTests.Expecto.sln and run the MonoDevelop.UnitTests.Expecto project from Visual Studio for Mac / MonoDevelop.
 
