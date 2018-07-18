@@ -82,20 +82,32 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
 
     let testRunnerRestartLock = new SemaphoreSlim(1, 1)
     let theLock = new SemaphoreSlim(1, 1)
+
     let mutable testRunner = Async.RunSynchronously <| acquireAsync testRunnerRestartLock RemoteTestRunner.Start
+    /// A DateTime representing the last time that a test runner read/loaded/examined the user's test assembly
+    let mutable lastTestRunnerRestart = None
+    /// The configuration last used to load a test
+    let mutable lastTestLoadConfig = None
 
     do
         IdeApp.ProjectOperations.EndBuild.Add (fun e ->
             if e.Success then
                 this.Refresh () |> ignore)
 
-    // TODO: determine what, if anything, needs to be done to make this thread safe.
-    // Off the top of my head, there could be badness if testRunner gets disposed while TestCase objects using it are running
+    /// Returns whether or not a call to Refresh is needed in order to keep up to date
+    member this.RefreshRequired () =
+        let currentConfig = IdeApp.Workspace.ActiveConfiguration
+        match lastTestRunnerRestart, lastTestLoadConfig with
+        | Some lastTestRunnerRestart, Some lastTestLoadConfig ->
+            lastTestLoadConfig = currentConfig && project.GetLastBuildTime currentConfig > lastTestRunnerRestart
+        | _ -> true
+
     member this.RestartTestRunnerAsync () = acquireAsync testRunnerRestartLock (fun () -> async {
         logfInfo "Restarting remote test runner..."
         (testRunner :> IDisposable).Dispose ()
         logfInfo "Old test runner client closed."
         let! newTestRunner = RemoteTestRunner.Start ()
+        lastTestRunnerRestart <- Some DateTime.Now
         testRunner <- newTestRunner
     })
 
@@ -105,6 +117,7 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
 
     // ew that we have to do this, just because the compiler doesn't let you call base methods from inside an async callback
     member internal this.RefreshBase ct = base.Refresh ct
+    member internal this.NotifyChanged () = this.OnTestChanged ()
 
     /// Ensures that the test tree is up to date with respect to the last build -- for now, it is dumb and just always rebuilds
     /// the tree
@@ -115,8 +128,12 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
     override this.Refresh ct =
         logfInfo "Test tree refresh requested"
         let refresh = async {
-            do! this.RebuildTestTree ()
-            do! Async.AwaitTask (this.RefreshBase ct)
+            if this.RefreshRequired () then
+                logfInfo "Test refresh required; refreshing"
+                do! this.RebuildTestTree ()
+                do! Async.AwaitTask (this.RefreshBase ct)
+            else
+                logfInfo "Test refresh not required; skipping"
         }
         Async.StartAsTask (refresh, cancellationToken = ct) :> _
 
@@ -139,6 +156,9 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
                 let result = test.Run testContext
                 mdResult.Add result
             logfInfo "mdResult = %A" mdResult
+
+            //do! this.RebuildTestTree ()
+
             return mdResult
         })
 
@@ -151,8 +171,8 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
         acquireAsync theLock (fun () -> async {
             logfInfo "Refreshing project test tree"
 
-
-            this.Tests.Clear ()
+            // This disposes all tests
+            //this.UpdateTests ()
 
             try
                 do! this.RestartTestRunnerAsync ()
@@ -163,22 +183,25 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
                     | Ok tests ->
                         logfInfo "Discovered Expecto test: %A" tests
 
+                        this.Tests.Clear ()
+                        
                         for test in Adapter.TryCreateMDTest this.GetTestRunner tests do
                             this.Tests.Add test
 
                     | Error exnString ->
                         logfError "Server error while loading tests from '%s': %s" this.OutputAssembly exnString
                 | _ -> failwithf "Server gave unexpected response (expected list of tests to load): %A" tests
-                
+
+                this.NotifyChanged ()
+
             with e ->
                 logfError "Error while loading tests '%s': %A" this.OutputAssembly e
             }
+
         )
-
-
+    
     /// Just calls RebuildTestTree()
-    override this.OnCreateTests () =
-        Async.RunSynchronously (this.RebuildTestTree (), 10_000)
+    override this.OnCreateTests () = Async.Start (this.RebuildTestTree ())
 
 
 and Adapter =

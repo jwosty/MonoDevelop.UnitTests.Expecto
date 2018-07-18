@@ -35,6 +35,13 @@ module Ext =
 
 [<AutoOpen>]
 module HelperFunctions =
+    let inline acquire (semaphore: SemaphoreSlim) action =
+        try
+            semaphore.WaitAsync().RunSynchronously()
+            action ()
+        finally
+            semaphore.Release() |> ignore
+
     let inline acquireAsync (semaphore: SemaphoreSlim) action = async {
         try
             do! Async.AwaitTask (semaphore.WaitAsync ())
