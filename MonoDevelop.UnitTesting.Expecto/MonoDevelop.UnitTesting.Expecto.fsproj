@@ -6,9 +6,7 @@
     <OtherFlags>--simpleresolution</OtherFlags>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Update="Properties\Manifest.addin.xml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </EmbeddedResource>
+    <EmbeddedResource Update="Properties\MonoDevelop.UnitTesting.Expecto.addin.xml"/>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Utilities.fs" />

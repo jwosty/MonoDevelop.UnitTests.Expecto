@@ -1,9 +1,5 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <ExtensionModel>
-    <Runtime>
-        <Import assembly="Expecto.RunnerServer.dll"/>
-        <Import assembly="Expecto.RunnerServer.Net461.exe"/>
-    </Runtime>
     
     <Extension path = "/MonoDevelop/UnitTesting/TestProviders">
         <Class id="SystemTestProvider" class="MonoDevelop.UnitTesting.Expecto.SystemTestProvider" />
