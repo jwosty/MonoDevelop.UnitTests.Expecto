@@ -1,4 +1,6 @@
-﻿module MonoDevelop.UnitTesting.Expecto.TestSuite.Tests
+﻿#r "../packages/Expecto.8.1.1/lib/net461/Expecto.dll"
+#r "../packages/FSharp.Compiler.Service.23.0.3/lib/net45/FSharp.Compiler.Service.dll"
+
 open Expecto
 open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices

@@ -1,5 +1,4 @@
 ﻿<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\packages\MonoDevelop.Addins.0.4.4\build\MonoDevelop.Addins.props" Condition="Exists('..\packages\MonoDevelop.Addins.0.4.4\build\MonoDevelop.Addins.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -17,7 +16,6 @@
     <DefineConstants>DEBUG</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <ExternalConsole>true</ExternalConsole>
-    <PlatformTarget></PlatformTarget>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Optimize>true</Optimize>
@@ -72,32 +70,33 @@
     <Reference Include="FSharp.Compiler.Service">
       <HintPath>..\packages\FSharp.Compiler.Service.23.0.3\lib\net45\FSharp.Compiler.Service.dll</HintPath>
     </Reference>
-    <Reference Include="ISymWrapper, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
-    <Reference Include="System.IO" />
-    <Reference Include="System.Runtime" />
+    <Reference Include="FsPickler">
+      <HintPath>..\packages\FsPickler.5.2\lib\net45\FsPickler.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Xml" />
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\packages\Newtonsoft.Json.6.0.5\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="FsPickler.Json">
+      <HintPath>..\packages\FsPickler.Json.5.2\lib\net45\FsPickler.Json.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <None Include="DummyTestSuites\DummyProject.Flat.fs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <Compile Include="Tests.fs" />
+    <Compile Include="AssemblyCompiler.fs" />
+    <Compile Include="TestRunnerServerTests.fs" />
+    <Compile Include="MessageServerTests.fs" />
     <Compile Include="Program.fs" />
     <None Include="packages.config" />
     <None Include="Script.fsx" />
+    <None Include="DynamicCompiler.fsx" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="DummyTestSuites\" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\MonoDevelop.UnitTesting.Expecto\MonoDevelop.UnitTesting.Expecto.fsproj">
-      <Project>{F3C760FD-66A1-4028-8C9F-D619BD393987}</Project>
-      <Name>MonoDevelop.UnitTesting.Expecto</Name>
+    <ProjectReference Include="..\Expecto.RunnerServer\Expecto.RunnerServer.fsproj">
+      <Project>{09097E5C-C54B-4C12-AA14-03CD9C11E087}</Project>
+      <Name>Expecto.RunnerServer</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <AddinReference Include="MonoDevelop.UnitTesting" />
-  </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
-  <Import Project="..\packages\MonoDevelop.Addins.0.4.4\build\MonoDevelop.Addins.targets" Condition="Exists('..\packages\MonoDevelop.Addins.0.4.4\build\MonoDevelop.Addins.targets')" />
 </Project>
