@@ -6,7 +6,7 @@ open Mono.Addins.Description
 [<assembly: Addin(
     "MonoDevelop.UnitTesting.Expecto",
     Namespace = "MonoDevelop.UnitTesting.Expecto",
-    Version = "0.0"
+    Version = "0.0.1-alpha"
 )>]
 
 [<assembly: AddinName("Expecto adapter")>]

@@ -206,6 +206,9 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
     /// Just calls RebuildTestTree()
     override this.OnCreateTests () = Async.Start (this.RebuildTestTree ())
 
+    override this.Dispose () =
+        (testRunner :> IDisposable).Dispose ()
+
 
 and Adapter =
     //static member TryCreateMDTests (tests, label) =
