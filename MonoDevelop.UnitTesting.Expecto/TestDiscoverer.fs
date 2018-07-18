@@ -26,11 +26,11 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
         logfInfo "assemblyName = %s" assemblyName
         let assemblyPath = Path.Combine (execDir, assemblyName)
 
-        let startInfo = new ProcessStartInfo("mono", sprintf "%s" assemblyPath,
+        // TODO: escape the command line arguments correctly
+        let startInfo = new ProcessStartInfo("mono", sprintf "\"%s\"" assemblyPath,
                                              RedirectStandardOutput = true, RedirectStandardError = true,
                                              UseShellExecute = false)
         let proc = Process.Start startInfo
-
 
         Async.Start <| async {
             let! str = Async.AwaitTask <| proc.StandardError.ReadLineAsync ()
