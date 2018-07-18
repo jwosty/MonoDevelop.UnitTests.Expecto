@@ -15,4 +15,4 @@ let test1 = test "hello world" { () }
 Open MonoDevelop.UnitTests.Expecto.sln and run the MonoDevelop.UnitTests.Expecto project from Visual Studio for Mac / MonoDevelop.
 
 ## Installing
-Run `msbuild MonoDevelop.UnitTests.Expecto.sln /target:PackageAddin`. In the IDE, do `Extensions > Install from file` and select the `.mpack` that should now be in the build directory.
+Run `msbuild MonoDevelop.UnitTesting.Expecto/MonoDevelop.UnitTesting.Expecto.fsproj /target:PackageAddin`. In the IDE, do `Extensions > Install from file` and select the `.mpack` that should now be in the build directory.
