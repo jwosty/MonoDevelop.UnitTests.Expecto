@@ -75,8 +75,6 @@ type ExpectoTestList(name, tests: UnitTest list) as this =
             mdResult.Add result
         mdResult
 
-type Tree<'Label, 'T> = | Node of 'Label * (Tree<'Label, 'T> list) | Leaf of 'Label * 'T
-
 type ExpectoProjectTestSuite(project: DotNetProject) as this =
     inherit UnitTestGroup(project.Name, project)
 
