@@ -7,6 +7,20 @@ open Expecto.RunnerServer
 
 let testMessage = { channelId = "ABC-123"; payload = [1..10] }
 
+let throwsTAsync<'texn> f message = async {
+    try
+        let! x = f ()
+        ignore x
+        Tests.failtestf "%s. Expected f to throw." message
+    with
+    | e when e.GetType() <> typeof<'texn> ->
+        Tests.failtestf "%s. Expected f to throw an exn of type %s, but one of type %s was thrown."
+                    message
+                    (typeof<'texn>.FullName)
+                    (e.GetType().FullName)
+    | e -> ()
+}
+
 [<Tests>]
 let messageTests =
     testList "Message" [
@@ -30,11 +44,27 @@ let messageTests =
 
             Expect.equal message message' ""
         }
+        testAsync "read should fail if the end of the stream is reached" {
+            let message = testMessage
+            use stream = new MemoryStream()
+
+            // start reading -- it will asynchronously wait until stuff is written
+            let! awaitReadFinish = Async.StartChild <| async {
+                do! throwsTAsync<EndOfStreamException> (fun () -> Message.read stream) "Check that EndOfStreamException is thrown on Message.read"
+            }
+
+            do! Async.Sleep 10
+
+            stream.Close ()
+
+            do! awaitReadFinish
+        }
     ]
 
 let reverseString (str: string) = new string(Array.rev <| str.ToCharArray())
 
 let ip = IPAddress.Loopback
+
 
 [<Tests>]
 let messageServerTests =
