@@ -88,7 +88,9 @@ let main argv =
                     serverTimeoutCanceller.Token))
 
         let server = new MessageServer<_,_>(port, fun server ->
+            #if !NO_KEEPALIVE
             keepAlive server.Stop
+            #endif
             handleClientMessage tdAgent)
         
         let! awaitServerExit = Async.StartChild <| server.StartAsync ()
