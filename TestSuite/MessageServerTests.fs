@@ -40,14 +40,14 @@ let ip = IPAddress.Loopback
 let messageServerTests =
     testList "MessageServer+MessageClient" [
         testAsync "Client should be able to send a message to a server and get a response" {
-            let server = MessageServer.Start (IPAddress.Any, 0, fun (str: string) -> async { return reverseString str })
+            let server = MessageServer.Start (IPAddress.Any, 0, fun _ (str: string) -> async { return reverseString str })
             let! client = MessageClient.ConnectAsync (ip, server.Port)
 
             let! response = client.GetResponseAsync "foo bar"
             Expect.equal response "rab oof" "Check response"
         }
         testAsync "Client should be able to send messages and get responses more than once" {
-             let server = MessageServer.Start (IPAddress.Any, 0, fun (str: string) -> async { return reverseString str })
+             let server = MessageServer.Start (IPAddress.Any, 0, fun _ (str: string) -> async { return reverseString str })
              let! client = MessageClient.ConnectAsync (ip, server.Port)
 
              for i in 1..5 do
@@ -55,7 +55,7 @@ let messageServerTests =
                  Expect.equal response (sprintf "%d rab oof" i) "Check response"
         } 
         testAsync "Server should be able to serve two clients simultaneously" {
-            let server = MessageServer.Start (ip, 0, fun str -> async { return reverseString str })
+            let server = MessageServer.Start (ip, 0, fun _ str -> async { return reverseString str })
             let! client1 = MessageClient.ConnectAsync (ip, server.Port)
             let! client2 = MessageClient.ConnectAsync (ip, server.Port)
 
@@ -69,7 +69,7 @@ let messageServerTests =
             Expect.equal baz "zab" "Check reverse baz"
         }
         testAsync "Client and server should be able to correspond out-of-order" {
-            let server = MessageServer.Start (ip, 0, fun (delay, message) -> async {
+            let server = MessageServer.Start (ip, 0, fun _ (delay, message) -> async {
                 do! Async.Sleep delay
                 return reverseString message
             })
@@ -98,14 +98,14 @@ let messageServerTests =
             ()
         }
         testAsync "Server should be stoppable, and stop gracefully" {
-            let server = MessageServer.Start (ip, 0, fun message -> async { return reverseString message })
+            let server = MessageServer.Start (ip, 0, fun _ message -> async { return reverseString message })
             // TODO: can we get rid of this sleep?? Stop throws an exception when we call it too fast after Start (TcpListener is doing that, not us)...
             do! Async.Sleep 10
             server.Stop ()
         }
         ftestAsync "Server should handle stopping in the middle of processing gracefully" {
             // This test is potentially brittle -- it assumes some knowlege of the message format
-            let server = MessageServer.Start (ip, 0, fun message -> async { return reverseString message })
+            let server = MessageServer.Start (ip, 0, fun _ message -> async { return reverseString message })
             use rawClient = new System.Net.Sockets.TcpClient ()
             do! Async.AwaitTask (rawClient.ConnectAsync (ip, server.Port))
 

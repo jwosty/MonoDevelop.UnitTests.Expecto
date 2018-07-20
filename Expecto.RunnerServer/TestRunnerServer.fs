@@ -61,9 +61,7 @@ let main argv =
 
     Async.RunSynchronously <| async {
         let tdAgent = new TestDictionaryAgent()
-        let server = new MessageServer<_,_>(port, handleClientMessage tdAgent)
-
-        
+        let server = new MessageServer<_,_>(port, fun server -> handleClientMessage tdAgent)
 
         let! awaitServerExit = Async.StartChild <| server.StartAsync ()
         // We tell the client what port we're listening on by making sure it's the first thing to go to stdout
