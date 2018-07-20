@@ -7,9 +7,9 @@ open System.Reflection
 open Expecto
 open Expecto.RunnerServer
 
-type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
+type RemoteTestRunner private(client: MessageClient<_,_>, serverProcess: Process) =
     let mutable disposed = false
-    let mutable cancelKeepAlive = None
+    let mutable cancelBackgroundWork = None
 
     member this.Client =
         if disposed then invalidOp "Cannot access a disposed object."
@@ -21,29 +21,41 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
                 (client :> IDisposable).Dispose ()
                 if not serverProcess.HasExited then
                     logfInfo "Closing server process with PID %A" serverProcess.Id
-                    match cancelKeepAlive with
+                    match cancelBackgroundWork with
                     | Some (cancelKeepAlive: CancellationTokenSource) -> cancelKeepAlive.Cancel ()
                     | None -> ()
                     serverProcess.Kill ()
                 disposed <- true
 
-    member this.StartKeepAlives () =
+    member private this.StartBackgroundWork () =
         if disposed then invalidOp "Cannot access a disposed object."
 
-        // TODO: maybe we should lock here -- this method might not be thread safe
-        match cancelKeepAlive with
+        match cancelBackgroundWork with
         | Some _ -> invalidOp "StartKeepAlives may not be called more than once"
         | None ->
             let cnclToken = new CancellationTokenSource()
-            cancelKeepAlive <- Some cnclToken
+            cancelBackgroundWork <- Some cnclToken
+
+            // Capture stdout in the thread pool
+            Async.Start (async {
+                let! str = Async.AwaitTask <| serverProcess.StandardOutput.ReadLineAsync ()
+                logfInfo "(Test server @ pid %d): %s" serverProcess.Id str
+            }, cnclToken.Token)
+
+            // Capture stderr in the thread pool
+            Async.Start (async {
+                let! str = Async.AwaitTask <| serverProcess.StandardError.ReadLineAsync ()
+                logfError "(Test server @ pid %d): %s" serverProcess.Id str
+            }, cnclToken.Token)
+
+            // Send KeepAlives in the thread pool every so often
             Async.Start (async {
                 while true do
                     do! Async.Sleep (TestRunnerServer.defaultKeepAliveTimeout / 2)
                     let request = TestRunnerServer.KeepAlive
                     let! response = client.GetResponseAsync request
                     match response with
-                    | TestRunnerServer.KeepAliveAcknowledged ->
-                        logfInfo "KeepAlive acknowledged"
+                    | TestRunnerServer.KeepAliveAcknowledged -> ()
                     | _ -> logfWarning "Server responded to %A with incorrect response (%A)" request response
             }, cnclToken.Token)
 
@@ -60,28 +72,19 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
                                              UseShellExecute = false)
         let proc = Process.Start startInfo
 
-        Async.Start <| async {
-            let! str = Async.AwaitTask <| proc.StandardError.ReadLineAsync ()
-            logfError "(Test server @ pid %d): %s" proc.Id str
-        }
-
         let! portStr = Async.AwaitTask <| proc.StandardOutput.ReadLineAsync ()
         let port =
             match Int32.TryParse portStr with
             | true, port -> port
             | false, _ -> raise (new FormatException(sprintf "Failed to connect to server. Server gave an invalid port number: '%s'" portStr))
 
-        Async.Start <| async {
-            let! str = Async.AwaitTask <| proc.StandardOutput.ReadLineAsync ()
-            logfInfo "(Test server @ pid %d): %s" proc.Id str
-        }
-
         logfInfo "Attempting to connect to test runner server"
         let! client = TestRunnerServer.connectClient port
         logfInfo "Connected to test runner server successfully"
 
         let testRunner = new RemoteTestRunner(client, proc)
-        testRunner.StartKeepAlives ()
+        testRunner.StartBackgroundWork ()
+        //testRunner.StartKeepAlives ()
         return testRunner
     }
 
