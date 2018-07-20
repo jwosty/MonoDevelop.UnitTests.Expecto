@@ -18,7 +18,7 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
                 logfInfo "Closing server process with PID %A" serverProcess.Id
                 serverProcess.Kill ()
             disposed <- true
-
+    
     static member Start () = async {
         let execDir = Path.GetDirectoryName (typeof<RemoteTestRunner>.Assembly.Location)
         let assemblyName = "Expecto.RunnerServer.Net461.exe"
@@ -51,6 +51,18 @@ type RemoteTestRunner(client: MessageClient<_,_>, serverProcess: Process) =
         logfInfo "Attempting to connect to test runner server"
         let! client = TestRunnerServer.connectClient port
         logfInfo "Connected to test runner server successfully"
+
+        // start a background thread to just send heartbeats
+        Async.Start <| async {
+            do! Async.Sleep (TestRunnerServer.defaultKeepAliveTimeout / 2)
+            logfInfo "Keep alive sent"
+            let request = TestRunnerServer.KeepAlive
+            let! response = client.GetResponseAsync request
+            match response with
+            | TestRunnerServer.KeepAliveAcknowledged ->
+                logfInfo "Keep alive acknowledged"
+            | _ -> logfWarning "Server responded to %A with incorrect response (%A)" request response
+        }
 
         return new RemoteTestRunner(client, proc)
     }
