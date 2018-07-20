@@ -103,7 +103,7 @@ let messageServerTests =
             do! Async.Sleep 10
             server.Stop ()
         }
-        ftestAsync "Server should handle stopping in the middle of processing gracefully" {
+        testAsync "Server should handle stopping in the middle of processing gracefully" {
             // This test is potentially brittle -- it assumes some knowlege of the message format
             let server = MessageServer.Start (ip, 0, fun _ message -> async { return reverseString message })
             use rawClient = new System.Net.Sockets.TcpClient ()

@@ -13,5 +13,6 @@ open Mono.Addins.Description
 [<assembly: AddinCategory("Testing")>]
 [<assembly: AddinDescription("Expecto adapter for MonoDevelop / Visual Studio for Mac")>]
 [<assembly: AddinAuthor("John Wostenberg")>]
+[<assembly: AddinUrlAttribute("https://github.com/jwosty/MonoDevelop.UnitTests.Expecto")>]
 
 do ()

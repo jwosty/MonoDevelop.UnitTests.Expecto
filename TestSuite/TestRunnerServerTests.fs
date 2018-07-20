@@ -131,17 +131,4 @@ let testRunnerAgentTests =
             let agent = new TestDictionaryAgent()
             do! loadAndRunTestsInAssembly agent 1 asmPath
         }
-        testAsync "Should be able to reload an assembly's tests" {
-            let agent = new TestDictionaryAgent()
-
-            // compile, load, and run v1
-            let! asmPath = AssemblyCompiler.Compile (totallyRealTestSuiteV1, totallyRealTestSuiteName)
-            let asmDir = Path.GetDirectoryName asmPath
-            do! loadAndRunTestsInAssembly agent 1 asmPath
-            agent.Post TestDictionaryMessage.UnloadTestsAndAssemblies
-
-            // recompile v2 assembly to the same path/file, then load and run its tests
-            let! asmPath = AssemblyCompiler.Compile (totallyRealTestSuiteV2, asmDir, totallyRealTestSuiteName)
-            do! loadAndRunTestsInAssembly agent 2 asmPath // v2 contains 2 tests total
-        }
     ]
