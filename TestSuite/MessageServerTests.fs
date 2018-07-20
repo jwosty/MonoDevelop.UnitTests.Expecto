@@ -97,4 +97,23 @@ let messageServerTests =
                 ]
             ()
         }
+        testAsync "Server should be stoppable, and stop gracefully" {
+            let server = MessageServer.Start (ip, 0, fun message -> async { return reverseString message })
+            // TODO: can we get rid of this sleep?? Stop throws an exception when we call it too fast after Start (TcpListener is doing that, not us)...
+            do! Async.Sleep 10
+            server.Stop ()
+        }
+        ftestAsync "Server should handle stopping in the middle of processing gracefully" {
+            // This test is potentially brittle -- it assumes some knowlege of the message format
+            let server = MessageServer.Start (ip, 0, fun message -> async { return reverseString message })
+            use rawClient = new System.Net.Sockets.TcpClient ()
+            do! Async.AwaitTask (rawClient.ConnectAsync (ip, server.Port))
+
+            // Write part of a message to the stream, causing the server to wait on the rest
+            use clientWriter = Message.makeTemporaryWriter (rawClient.GetStream ())
+            do! Message.writeHeader clientWriter 42   // byte length does not matter since we're never going to finish
+
+            // rudely interrupt the server
+            server.Stop ()
+        }
     ]

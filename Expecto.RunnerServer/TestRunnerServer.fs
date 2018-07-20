@@ -63,6 +63,8 @@ let main argv =
         let tdAgent = new TestDictionaryAgent()
         let server = new MessageServer<_,_>(port, handleClientMessage tdAgent)
 
+        
+
         let! awaitServerExit = Async.StartChild <| server.StartAsync ()
         // We tell the client what port we're listening on by making sure it's the first thing to go to stdout
         // TODO: (there should probably be tests around this behavior)

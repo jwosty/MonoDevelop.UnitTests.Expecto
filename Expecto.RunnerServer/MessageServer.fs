@@ -58,14 +58,22 @@ module Message =
     // Messages are composed of a 32-bit int indicating the payload length in bytes, followed by a newline,
     // followed by the message payload
 
+    /// Returns a StreamReader for the given stream that won't close the underlying stream
+    let makeTemporaryReader (stream: Stream) = new StreamReader(stream, Encoding.UTF8, true, StreamReader.DefaultBufferSize, true)
+
+    /// Reads a message header, which solely consists of the payload length in bytes
+    let readHeader (reader: StreamReader) = async {
+        let! payloadLength = Async.AwaitTask <| reader.ReadLineAsync ()
+        let payloadLength = payloadLength.TrimEnd [|'\r'; '\n'|]
+        return int payloadLength
+    }
+
     /// Reads and deserializes a message from a stream. Not thread-safe.
     let read<'a> (stream: Stream) : Async<Message<'a>> = async {
         // TODO: catch exceptions and report protocol errors back to the client
         let! payload = async {
-            use reader = new StreamReader(stream, Encoding.UTF8, true, StreamReader.DefaultBufferSize, true)
-            let! payloadLength = Async.AwaitTask <| reader.ReadLineAsync ()
-            let payloadLength = payloadLength.TrimEnd [|'\r'; '\n'|]
-            let payloadLength = int payloadLength
+            use reader = makeTemporaryReader stream
+            let! payloadLength = readHeader reader
             let! payload = reader.ReadBytesAsync payloadLength
             return new string(payload)
         }
@@ -75,16 +83,23 @@ module Message =
         return message
     }
 
+    /// Returns a StreamWriter for the given stream that won't close the underlying stream
+    let makeTemporaryWriter (stream: Stream) = new StreamWriter(stream, Encoding.UTF8, StreamReader.DefaultBufferSize, true)
+
+    /// Writes a message header, which solely consists of the payload length in bytes
+    let writeHeader (writer: StreamWriter) payloadLength =
+        Async.AwaitTask (writer.WriteLineAsync (string payloadLength))
+
     /// Serializes and writes a message to a stream. Not thread-safe.
     let write (stream: Stream) (message: Message<'a>) = async {
         let payload =
             use payloadWriter = new StringWriter()
             serializer.Serialize (payloadWriter, message)
             payloadWriter.ToString ()
-        
-        use writer = new StreamWriter(stream, Encoding.UTF8, StreamReader.DefaultBufferSize, true)
 
-        do! Async.AwaitTask (writer.WriteLineAsync (string (Encoding.UTF8.GetByteCount payload)))
+        use writer = makeTemporaryWriter stream
+        
+        do! writeHeader writer (Encoding.UTF8.GetByteCount payload)
         do! Async.AwaitTask (writer.WriteAsync payload)
         do! Async.AwaitTask (writer.FlushAsync ())
     }
@@ -126,6 +141,8 @@ type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler:
 
     /// Starts the message server in a separate thread.
     member this.Start () = Async.Start (this.StartAsync ())
+
+    member this.Stop () = listener.Stop ()
 
 module MessageServer =
     /// Creates and starts a message server in a separate thread.
