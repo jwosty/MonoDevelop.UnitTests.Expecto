@@ -121,14 +121,16 @@ type MessageServer<'TRequest, 'TResponse>(listener: TcpListener, messageHandler:
 
     member private this.HandleClient (client: TcpClient) = async {
         let clientStream = client.GetStream ()
-        while true do
-            // The read lock may not be strictly necessary
-            let! request = acquireAsync readLock (fun () -> Message.read<'TRequest> clientStream)
-            Async.Start <| async {
-                let! response = messageHandler this request.payload
-                let response = { channelId = request.channelId; payload = response }
-                do! acquireAsync writeLock (fun () -> Message.write clientStream response)
-            }
+        try
+            while true do
+                // The read lock may not be strictly necessary
+                let! request = acquireAsync readLock (fun () -> Message.read<'TRequest> clientStream)
+                Async.Start <| async {
+                    let! response = messageHandler this request.payload
+                    let response = { channelId = request.channelId; payload = response }
+                    do! acquireAsync writeLock (fun () -> Message.write clientStream response)
+                }
+        with :? EndOfStreamException -> ()
     }
 
     /// Starts the message server.
