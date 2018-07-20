@@ -20,3 +20,5 @@ Run:
 ```bash
 msbuild MonoDevelop.UnitTesting.Expecto/MonoDevelop.UnitTesting.Expecto.fsproj /p:Configuration=Release /p:InstallAddin=true
 ```
+
+NOTE: This has project has not been tested on Windows MonoDevelop. It probably doesn't work (but it's probably not too much effort to make it work)
