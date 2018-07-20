@@ -100,7 +100,10 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
         let currentConfig = IdeApp.Workspace.ActiveConfiguration
         match lastTestRunnerRestart, lastTestLoadConfig with
         | Some lastTestRunnerRestart, Some lastTestLoadConfig ->
-            lastTestLoadConfig = currentConfig && project.GetLastBuildTime currentConfig > lastTestRunnerRestart
+            let lastBuildTime = project.GetLastBuildTime currentConfig
+            printfn "(lastTestLoadConfig, lastTestRunnerRestart) = %A" (lastTestLoadConfig, lastTestRunnerRestart)
+            printfn "(lastBuildTime, currentConfig) = %A" (lastBuildTime, currentConfig)
+            (lastTestLoadConfig <> currentConfig) || (lastBuildTime > lastTestRunnerRestart)
         | _ -> true
 
     member this.RestartTestRunnerAsync () = acquireAsync testRunnerRestartLock (fun () -> async {
@@ -110,7 +113,7 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
         let! newTestRunner = RemoteTestRunner.Start ()
         lastTestRunnerRestart <- Some DateTime.Now
         lastTestLoadConfig <- Some IdeApp.Workspace.ActiveConfiguration
-        logfInfo "refresh time = %A; active configuration = %A" lastTestRunnerRestart lastTestLoadConfig
+        //logfInfo "refresh time = %A; active configuration = %A" lastTestRunnerRestart lastTestLoadConfig
         testRunner <- newTestRunner
     })
 
