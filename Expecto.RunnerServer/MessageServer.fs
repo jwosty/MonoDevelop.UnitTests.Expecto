@@ -180,17 +180,19 @@ type MessageClient<'TRequest, 'TResponse>(tcpClient: TcpClient) =
     new() = new MessageClient<_,_>(new TcpClient())
 
     member private this.HandleResponseLoop (stream: Stream) = async {
-        while true do
-            // listen for a response, then route it to the correct continuation
-            try
-                let! response = acquireAsync readLock (fun () -> Message.read stream)
-                match responseContinuations.TryGetValue response.channelId with
-                | true, continuation ->
-                    responseContinuations.TryRemove response.channelId |> ignore
-                    continuation response
-                | false, _ -> onInvalidResponse.Trigger response
-            with e ->
-                printf "Exception caught while reading/handling response: %A\n" e
+        try
+            while true do
+                // listen for a response, then route it to the correct continuation
+                    let! response = acquireAsync readLock (fun () -> Message.read stream)
+                    match responseContinuations.TryGetValue response.channelId with
+                    | true, continuation ->
+                        responseContinuations.TryRemove response.channelId |> ignore
+                        continuation response
+                    | false, _ -> onInvalidResponse.Trigger response
+        with 
+        | :? EndOfStreamException -> ()
+        | e ->
+            printf "Exception caught while reading/handling response: %A\n" e
     }
 
     /// Connects to a MessageServer listening at the given address and port.
