@@ -70,9 +70,14 @@ type ExpectoTestList(name, tests: UnitTest list) as this =
 
     override this.OnRun testContext =
         let mdResult = UnitTestResult.CreateSuccess ()
-        for test in this.Tests do
-            let result = test.Run testContext
-            mdResult.Add result
+        let _ =
+            Async.Parallel [|
+                for test in this.Tests -> async {
+                    let result = test.Run testContext
+                    mdResult.Add result
+                }
+            |]
+            |> Async.RunSynchronously
         mdResult
 
 type ExpectoProjectTestSuite(project: DotNetProject) as this =
@@ -160,13 +165,14 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
             do! Async.AwaitTask (this.Build ())
             logfInfo "Project built; running tests"
             let mdResult = UnitTestResult.CreateSuccess ()
-            for test in this.Tests do
-                let result = test.Run testContext
-                mdResult.Add result
+            let! _ =
+                Async.Parallel [|
+                    for test in this.Tests -> async {
+                        let result = test.Run testContext
+                        mdResult.Add result
+                    }
+                |]
             logfInfo "mdResult = %A" mdResult
-
-            //do! this.RebuildTestTree ()
-
             return mdResult
         })
 
@@ -175,13 +181,9 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
 
     /// <summary>
     /// Reconstructs the test tree using current RemoteTestRunner. This method does not provide thread-safety.
-
     /// </summary>
     member private this.RebuildTestTree () = async {
         logfInfo "Refreshing project test tree"
-
-        // This disposes all tests
-        //this.UpdateTests ()
 
         try
             do! this.RestartTestRunnerAsync ()
