@@ -58,7 +58,7 @@ type ExpectoTestCase(fullName: string, name: string, id: Guid, getTestRunner) =
     }
 
     override this.OnRun testContext =
-        Async.RunSynchronously (this.OnRunAsync ())
+        Async.RunSynchronously (this.OnRunAsync (), cancellationToken = testContext.Monitor.CancellationToken)
 
 type ExpectoTestList(name, tests: UnitTest list) as this =
     inherit UnitTestGroup(HelperFunctions.ensureNonEmptyName name)
@@ -71,13 +71,14 @@ type ExpectoTestList(name, tests: UnitTest list) as this =
     override this.OnRun testContext =
         let mdResult = UnitTestResult.CreateSuccess ()
         let _ =
-            Async.Parallel [|
-                for test in this.Tests -> async {
-                    let result = test.Run testContext
-                    mdResult.Add result
-                }
-            |]
-            |> Async.RunSynchronously
+            Async.RunSynchronously
+               (Async.Parallel [|
+                    for test in this.Tests -> async {
+                        let result = test.Run testContext
+                        mdResult.Add result
+                    }
+                |],
+                cancellationToken = testContext.Monitor.CancellationToken)
         mdResult
 
 type ExpectoProjectTestSuite(project: DotNetProject) as this =
@@ -160,7 +161,7 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
         //} :> _
 
     override this.OnRun testContext =
-        Async.RunSynchronously <| acquireAsync refreshLock (fun () -> async {
+        Async.RunSynchronously (acquireAsync refreshLock (fun () -> async {
             logfInfo "Preparing to run tests"
             do! Async.AwaitTask (this.Build ())
             logfInfo "Project built; running tests"
@@ -174,7 +175,7 @@ type ExpectoProjectTestSuite(project: DotNetProject) as this =
                 |]
             logfInfo "mdResult = %A" mdResult
             return mdResult
-        })
+        }), cancellationToken = testContext.Monitor.CancellationToken)
 
     // If this were to return false, the group wouldn't show up in the pane, preventing tests from even being populated
     override this.HasTests = true
